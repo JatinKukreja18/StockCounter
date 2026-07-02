@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #18211d;
+  --muted: #68726c;
+  --line: #e4e8e5;
+  --paper: #f7f8f6;
+  --card: #ffffff;
+  --green: #18794e;
+  --green-dark: #0f5e3b;
+  --green-soft: #e9f6ef;
+  --amber: #b45309;
+  --amber-soft: #fff6df;
+  --red: #b42318;
+  --red-soft: #fff0ee;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--paper); }
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 85% -10%, rgba(66, 153, 105, .10), transparent 30rem),
+    var(--paper);
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font: inherit; }
+button { touch-action: manipulation; }
+::selection { background: #ccebd9; }
+
+.safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+.tabular { font-variant-numeric: tabular-nums; }
+.shadow-soft { box-shadow: 0 1px 2px rgba(14, 26, 20, .04), 0 10px 30px rgba(14, 26, 20, .05); }
+.scan-line { animation: scan 2s ease-in-out infinite; }
+@keyframes scan {
+  0%, 100% { transform: translateY(0); opacity: .5; }
+  50% { transform: translateY(150px); opacity: 1; }
+}
+@keyframes enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-enter { animation: enter .24s ease-out both; }
