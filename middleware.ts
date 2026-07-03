@@ -31,8 +31,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
   if (user && path === "/login") {
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single();
     const url = request.nextUrl.clone();
-    url.pathname = "/count";
+    url.pathname = profile?.role === "admin" ? "/admin" : "/count";
     url.search = "";
     return NextResponse.redirect(url);
   }

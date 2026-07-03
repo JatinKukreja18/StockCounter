@@ -40,7 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {!isCount && (
           <aside className="sticky top-16 hidden h-[calc(100dvh-4rem)] w-60 shrink-0 border-r border-[#e4e8e5] px-3 py-6 lg:block">
             <nav className="space-y-1">
-              {nav.slice(1).map((item) => {
+              {nav.map((item) => {
                 const active = item.href === "/admin" ? pathname === item.href : pathname.startsWith(item.href);
                 return (
                   <Link key={item.href} href={item.href} className={cn("flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold", active ? "bg-[#e9f6ef] text-[#12673f]" : "text-[#68726c] hover:bg-white")}>
@@ -50,10 +50,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 );
               })}
             </nav>
-            <div className="absolute bottom-5 left-3 right-3 rounded-xl border border-[#dfe5e1] bg-white p-3">
-              <div className="mb-1 flex items-center gap-2 text-xs font-bold text-[#18794e]"><Cloud size={14} /> System online</div>
-              <p className="text-[11px] leading-4 text-[#7a847e]">Stock import updated 7 hours ago.</p>
-            </div>
           </aside>
         )}
         <main className={cn("min-w-0 flex-1", isCount ? "pb-24" : "px-4 py-6 pb-24 lg:px-8 lg:py-8")}>{children}</main>

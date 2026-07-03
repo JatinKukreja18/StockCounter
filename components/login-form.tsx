@@ -22,7 +22,15 @@ export function LoginForm() {
       const supabase = createSupabaseBrowserClient();
       const result = await supabase.auth.signInWithPassword({ email, password });
       if (result.error) throw result.error;
-      router.replace(params.get("next") || "/count");
+      const requested = params.get("next");
+      if (requested) {
+        router.replace(requested);
+      } else {
+        const { data: profile, error: profileError } = await supabase
+          .from("users").select("role").eq("id", result.data.user.id).single();
+        if (profileError) throw profileError;
+        router.replace(profile.role === "admin" ? "/admin" : "/count");
+      }
       router.refresh();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Sign in failed.");

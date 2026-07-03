@@ -42,6 +42,15 @@ export async function GET() {
       .select("id,name,status,category,store,stock_import_id,created_at,closed_at,stock_imports(file_name),session_assignments(user_id,users(full_name)),session_products(product_id)")
       .order("created_at", { ascending: false });
     if (error) throw error;
+    const sessionIds = (data ?? []).map((row) => row.id);
+    const [{ data: progress, error: progressError }, { data: entries, error: entriesError }] = sessionIds.length
+      ? await Promise.all([
+          supabase.from("session_product_progress").select("session_id,count_status").in("session_id", sessionIds),
+          supabase.from("count_entries").select("session_id").in("session_id", sessionIds)
+        ])
+      : [{ data: [], error: null }, { data: [], error: null }];
+    if (progressError) throw progressError;
+    if (entriesError) throw entriesError;
     const sessions = (data ?? []).map((row) => {
       const source = row as unknown as {
         id: string; name: string; status: "draft" | "open" | "closed"; category: string | null; store: string;
@@ -61,7 +70,9 @@ export async function GET() {
         productIds: [...new Set(source.session_products.map((item) => item.product_id))],
         assignees: source.session_assignments.map((item) => item.users?.full_name).filter(Boolean),
         createdAt: source.created_at,
-        closedAt: source.closed_at ?? undefined
+        closedAt: source.closed_at ?? undefined,
+        completedProductCount: (progress ?? []).filter((item) => item.session_id === source.id && item.count_status === "counted").length,
+        entryCount: (entries ?? []).filter((item) => item.session_id === source.id).length
       };
     });
     return NextResponse.json({ sessions });

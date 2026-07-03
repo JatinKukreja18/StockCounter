@@ -54,7 +54,7 @@ export function UserManager() {
         {message && <p className="mt-3 rounded-xl bg-[#eef2ef] p-3 text-xs font-semibold">{message}</p>}
       </Card>
       <Card className="overflow-hidden">
-        <div className="border-b border-[#e8ece9] px-5 py-4"><h2 className="font-black">Pilot users</h2><p className="text-xs text-[#7a847e]">{users.length} accounts</p></div>
+        <div className="border-b border-[#e8ece9] px-5 py-4"><h2 className="font-black">Users</h2><p className="text-xs text-[#7a847e]">{users.length} accounts</p></div>
         {loading ? <div className="grid py-12 place-items-center"><LoaderCircle className="animate-spin" /></div> : (
           <div className="divide-y divide-[#e8ece9]">{users.map((user) => (
             <div key={user.id} className="flex items-center gap-3 px-5 py-4">

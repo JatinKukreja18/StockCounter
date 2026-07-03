@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, ArrowRight, Check, FileUp, Filter, LoaderCircle, Plus, Users, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Check, LoaderCircle, Plus, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,7 +11,9 @@ import { parseStockWorkbook, type GoFrugalImportResult } from "@/lib/gofrugal-im
 import type { CountSession } from "@/lib/types";
 
 export function SessionManager() {
-  const [sessions, setSessions] = useState(demoSessions);
+  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const [sessions, setSessions] = useState<CountSession[]>(isDemo ? demoSessions : []);
+  const [loading, setLoading] = useState(!isDemo);
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState(false);
   const [masterFile, setMasterFile] = useState("");
@@ -19,13 +21,14 @@ export function SessionManager() {
   const [staff, setStaff] = useState<Array<{ id: string; full_name: string; email: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   async function loadRealData() {
     if (isDemo) return;
     const [sessionsResponse, usersResponse] = await Promise.all([fetch("/api/admin/sessions"), fetch("/api/admin/users")]);
     if (sessionsResponse.ok) setSessions((await sessionsResponse.json()).sessions);
+    else setError("Could not load sessions.");
     if (usersResponse.ok) setStaff((await usersResponse.json()).users.filter((user: { role: string }) => user.role === "staff"));
+    setLoading(false);
   }
   useEffect(() => { void loadRealData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -82,20 +85,20 @@ export function SessionManager() {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm"><Filter size={15} /> All stores</Button>
-          <Link href="/admin/import"><Button variant="secondary" size="sm"><FileUp size={15} /> Import stock</Button></Link>
-        </div>
+        <p className="text-xs text-[#7a847e]">Each session is permanently linked to its uploaded stock master.</p>
         <Button onClick={() => setCreating(true)}><Plus size={17} /> Create session</Button>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
+        {loading && <Card className="col-span-full grid min-h-40 place-items-center"><LoaderCircle className="animate-spin text-[#18794e]" /></Card>}
+        {!loading && !sessions.length && <Card className="col-span-full py-14 text-center"><p className="font-black">No count sessions yet</p><p className="mt-1 text-sm text-[#7a847e]">Upload a GoFrugal stock master to create the first live session.</p></Card>}
         {sessions.map((session) => {
-          const sessionProducts = demoProducts.filter((product) => session.productIds.includes(product.id));
-          const counted = sessionProducts.filter((product) =>
-            product.batches.every((batch) => demoEntries.some((entry) => entry.sessionId === session.id && entry.stockBatchId === batch.id && !entry.isVoided))
-          ).length;
-          const percent = Math.round((counted / session.productIds.length) * 100);
+          const counted = isDemo
+            ? demoProducts.filter((product) => session.productIds.includes(product.id)).filter((product) =>
+                product.batches.every((batch) => demoEntries.some((entry) => entry.sessionId === session.id && entry.stockBatchId === batch.id && !entry.isVoided))
+              ).length
+            : session.completedProductCount ?? 0;
+          const percent = session.productIds.length ? Math.round((counted / session.productIds.length) * 100) : 0;
           return (
             <Card key={session.id} className="group overflow-hidden">
               <div className="p-5">
@@ -115,7 +118,7 @@ export function SessionManager() {
               </div>
               <div className="flex items-center justify-between border-t border-[#e8ece9] bg-[#fbfcfb] px-5 py-3">
                 <div className="flex items-center gap-2 text-xs font-semibold text-[#68726c]"><Users size={15} /> {session.assignees.join(", ")}</div>
-                <span className="text-xs font-bold text-[#18794e]">{demoEntries.filter((entry) => entry.sessionId === session.id).length} synced entries</span>
+                <span className="text-xs font-bold text-[#18794e]">{isDemo ? demoEntries.filter((entry) => entry.sessionId === session.id).length : session.entryCount ?? 0} synced entries</span>
               </div>
             </Card>
           );

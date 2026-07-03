@@ -44,6 +44,8 @@ export interface CountSession {
   assignees: string[];
   createdAt: string;
   closedAt?: string;
+  completedProductCount?: number;
+  entryCount?: number;
 }
 
 export interface LocalCountEntry {
@@ -76,6 +78,7 @@ export interface SyncIssue {
   message: string;
   severity: "warning" | "error";
   status: "open" | "accepted" | "corrected" | "voided";
+  createdAt?: string;
 }
 
 export interface SyncEntryResult {
