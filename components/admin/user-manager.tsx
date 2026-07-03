@@ -34,7 +34,7 @@ export function UserManager() {
     const data = await response.json();
     if (response.ok) {
       event.currentTarget.reset();
-      setMessage("Staff account created. Share the temporary password securely.");
+      setMessage(data.existing ? "This staff account already exists—no duplicate was created." : "Staff account created. Share the temporary password securely.");
       await load();
     } else setMessage(data.error || "Could not create account.");
     setSaving(false);

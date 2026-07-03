@@ -28,6 +28,9 @@ export async function POST(request: Request) {
     const parsed = createSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: "Invalid user", details: parsed.error.flatten() }, { status: 400 });
     const admin = createSupabaseAdminClient();
+    const existing = await admin.from("users").select("id").eq("email", parsed.data.email).maybeSingle();
+    if (existing.error) throw existing.error;
+    if (existing.data) return NextResponse.json({ existing: true });
     const { data, error } = await admin.auth.admin.createUser({
       email: parsed.data.email,
       password: parsed.data.password,
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
       const update = await admin.from("users").update({ role: "admin" }).eq("id", data.user.id);
       if (update.error) throw update.error;
     }
-    return NextResponse.json({ user: data.user }, { status: 201 });
+    return NextResponse.json({ user: data.user, created: true }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to create user";
     return NextResponse.json({ error: message }, { status: message === "Forbidden" ? 403 : 500 });
