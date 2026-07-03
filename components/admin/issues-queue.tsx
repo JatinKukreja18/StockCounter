@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, Check, Link2, Pencil, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,49 @@ import type { SyncIssue } from "@/lib/types";
 
 export function IssuesQueue() {
   const [issues, setIssues] = useState(demoIssues);
+  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL;
   const open = issues.filter((issue) => issue.status === "open");
-  function resolve(id: string, status: SyncIssue["status"]) {
+  useEffect(() => {
+    if (!isDemo) void fetch("/api/admin/issues").then(async (response) => {
+      if (response.ok) setIssues((await response.json()).issues);
+    });
+  }, [isDemo]);
+  async function resolve(id: string, status: SyncIssue["status"]) {
+    if (status === "open") return;
+    let quantity: number | undefined;
+    if (status === "corrected") {
+      const value = window.prompt("Enter the corrected positive quantity");
+      if (!value || Number(value) <= 0) return;
+      quantity = Number(value);
+    }
+    if (!isDemo) {
+      const response = await fetch("/api/admin/issues", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ issueId: id, resolution: status, quantity })
+      });
+      if (!response.ok) return;
+    }
     setIssues((items) => items.map((item) => item.id === id ? { ...item, status } : item));
+  }
+  async function assign(id: string) {
+    const query = window.prompt("Search the correct product by SKU, barcode, or name");
+    if (!query) return;
+    if (isDemo) return setIssues((items) => items.map((item) => item.id === id ? { ...item, status: "accepted" } : item));
+    const response = await fetch(`/api/admin/issues?options=${encodeURIComponent(query)}`);
+    const options = response.ok ? (await response.json()).options as Array<{ sessionId: string; stockBatchId: string; label: string }> : [];
+    if (!options.length) return window.alert("No matching batch in an open session.");
+    let selected = options[0];
+    if (options.length > 1) {
+      const choice = window.prompt(`Choose a result number:\n${options.slice(0, 10).map((option, index) => `${index + 1}. ${option.label}`).join("\n")}`, "1");
+      const index = Number(choice) - 1;
+      if (!Number.isInteger(index) || !options[index]) return;
+      selected = options[index];
+    }
+    const update = await fetch("/api/admin/issues", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ issueId: id, resolution: "assigned", sessionId: selected.sessionId, stockBatchId: selected.stockBatchId })
+    });
+    if (update.ok) setIssues((items) => items.map((item) => item.id === id ? { ...item, status: "accepted" } : item));
   }
   return (
     <div className="space-y-4">
@@ -29,10 +69,10 @@ export function IssuesQueue() {
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-2 border-t border-[#e8ece9] bg-[#fbfcfb] px-5 py-3">
-            {issue.code === "barcode_not_found" && <Button variant="secondary" size="sm"><Link2 size={14} /> Assign product & session</Button>}
-            <Button variant="secondary" size="sm" onClick={() => resolve(issue.id, "corrected")}><Pencil size={14} /> Correct</Button>
-            <Button variant="ghost" size="sm" className="text-[#b42318]" onClick={() => resolve(issue.id, "voided")}><Trash2 size={14} /> Void</Button>
-            <Button size="sm" onClick={() => resolve(issue.id, "accepted")}><Check size={14} /> Accept</Button>
+            {issue.code === "barcode_not_found" && <Button variant="secondary" size="sm" onClick={() => void assign(issue.id)}><Link2 size={14} /> Assign product & session</Button>}
+            <Button variant="secondary" size="sm" onClick={() => void resolve(issue.id, "corrected")}><Pencil size={14} /> Correct</Button>
+            <Button variant="ghost" size="sm" className="text-[#b42318]" onClick={() => void resolve(issue.id, "voided")}><Trash2 size={14} /> Void</Button>
+            <Button size="sm" onClick={() => void resolve(issue.id, "accepted")}><Check size={14} /> Accept</Button>
           </div>
         </Card>
       ) : null)}

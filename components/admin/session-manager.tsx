@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, FileUp, Filter, Plus, Users, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Check, FileUp, Filter, LoaderCircle, Plus, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { demoEntries, demoProducts, demoSessions } from "@/lib/demo-data";
+import { parseStockWorkbook, type GoFrugalImportResult } from "@/lib/gofrugal-import";
 import type { CountSession } from "@/lib/types";
 
 export function SessionManager() {
@@ -14,6 +15,69 @@ export function SessionManager() {
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState(false);
   const [masterFile, setMasterFile] = useState("");
+  const [parsed, setParsed] = useState<GoFrugalImportResult | null>(null);
+  const [staff, setStaff] = useState<Array<{ id: string; full_name: string; email: string }>>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  async function loadRealData() {
+    if (isDemo) return;
+    const [sessionsResponse, usersResponse] = await Promise.all([fetch("/api/admin/sessions"), fetch("/api/admin/users")]);
+    if (sessionsResponse.ok) setSessions((await sessionsResponse.json()).sessions);
+    if (usersResponse.ok) setStaff((await usersResponse.json()).users.filter((user: { role: string }) => user.role === "staff"));
+  }
+  useEffect(() => { void loadRealData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function readMaster(file: File) {
+    setError("");
+    setParsed(null);
+    setMasterFile(file.name);
+    try {
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      setParsed(parseStockWorkbook(XLSX, workbook));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not parse the Excel file.");
+    }
+  }
+
+  async function createSession(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!parsed) return setError("Choose and validate a GoFrugal Excel file first.");
+    setSaving(true);
+    setError("");
+    const form = new FormData(event.currentTarget);
+    const assigneeIds = form.getAll("assignees").map(String);
+    if (!assigneeIds.length) {
+      setSaving(false);
+      return setError("Assign at least one staff member.");
+    }
+    try {
+      if (isDemo) {
+        const next: CountSession = {
+          id: crypto.randomUUID(), stockImportId: crypto.randomUUID(), masterFileName: masterFile,
+          name: String(form.get("name")), category: parsed.metadata.category, store: parsed.metadata.store, status: "open",
+          productIds: parsed.products.map((product) => product.sku), assignees: ["Demo Staff"], createdAt: new Date().toISOString()
+        };
+        setSessions((value) => [next, ...value]);
+      } else {
+        const response = await fetch("/api/admin/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: form.get("name"), fileName: masterFile, products: parsed.products, assigneeIds })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Session import failed.");
+        await loadRealData();
+      }
+      setCreated(true);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Session import failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <>
@@ -73,23 +137,16 @@ export function SessionManager() {
                 <Button className="mt-5" onClick={() => { setCreating(false); setCreated(false); }}>Done</Button>
               </div>
             ) : (
-              <form onSubmit={(event) => {
-                event.preventDefault();
-                const form = new FormData(event.currentTarget);
-                const category = String(form.get("category"));
-                const next: CountSession = {
-                  id: crypto.randomUUID(), stockImportId: crypto.randomUUID(), masterFileName: masterFile, name: `${category} · Main Store`, category, store: "Main Store", status: "open",
-                  productIds: ["new-1", "new-2"], assignees: [String(form.get("assignee"))], createdAt: new Date().toISOString()
-                };
-                setSessions((value) => [...value, next]);
-                setCreated(true);
-              }} className="space-y-4">
-                <label className="block"><span className="mb-1.5 block text-xs font-bold">GoFrugal stock master</span><input required type="file" accept=".xls,.xlsx" onChange={(event) => setMasterFile(event.target.files?.[0]?.name ?? "")} className="block w-full rounded-xl border border-[#dfe5e1] bg-white p-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[#e9f6ef] file:px-3 file:py-2 file:font-bold file:text-[#12673f]" /><span className="mt-1.5 block text-[11px] text-[#7a847e]">The file is immutable after the session opens.</span></label>
-                <label className="block"><span className="mb-1.5 block text-xs font-bold">Store</span><select name="store" className="h-11 w-full rounded-xl border border-[#dfe5e1] bg-white px-3 outline-none"><option>Main Store</option></select></label>
-                <label className="block"><span className="mb-1.5 block text-xs font-bold">Category</span><select name="category" className="h-11 w-full rounded-xl border border-[#dfe5e1] bg-white px-3 outline-none"><option>Confectionery</option><option>Frozen</option><option>Household</option></select></label>
-                <label className="block"><span className="mb-1.5 block text-xs font-bold">Assign to</span><select name="assignee" className="h-11 w-full rounded-xl border border-[#dfe5e1] bg-white px-3 outline-none"><option>Aiko</option><option>Meera</option><option>Rohan</option><option>Night Team</option></select></label>
-                <div className="rounded-xl bg-[#f4f7f5] p-4 text-sm">{masterFile ? <><b>{masterFile}</b> will be parsed into products and expiry batches for this session.</> : "Choose the Excel file to preview its products and batches."}</div>
-                <Button size="lg" className="w-full" type="submit">Create and open session</Button>
+              <form onSubmit={createSession} className="space-y-4">
+                <label className="block"><span className="mb-1.5 block text-xs font-bold">GoFrugal stock master</span><input required type="file" accept=".xls,.xlsx" onChange={(event) => event.target.files?.[0] && void readMaster(event.target.files[0])} className="block w-full rounded-xl border border-[#dfe5e1] bg-white p-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[#e9f6ef] file:px-3 file:py-2 file:font-bold file:text-[#12673f]" /><span className="mt-1.5 block text-[11px] text-[#7a847e]">The file is immutable after the session opens.</span></label>
+                {parsed && <div className="rounded-xl bg-[#e9f6ef] p-4 text-sm text-[#12673f]"><b>{parsed.products.length} products · {parsed.metadata.batchRows} batches</b><br />{parsed.metadata.store} · {parsed.metadata.category} · Stock {parsed.metadata.grandTotal?.toLocaleString("en-IN")}</div>}
+                <label className="block"><span className="mb-1.5 block text-xs font-bold">Session name</span><input required name="name" defaultValue={parsed ? `${parsed.metadata.category} · ${parsed.metadata.store}` : ""} key={parsed?.metadata.category} className="h-11 w-full rounded-xl border border-[#dfe5e1] bg-white px-3 outline-none" /></label>
+                <fieldset><legend className="mb-1.5 text-xs font-bold">Assign staff</legend><div className="max-h-36 space-y-1 overflow-auto rounded-xl border border-[#dfe5e1] p-2">
+                  {(isDemo ? [{ id: "demo-staff", full_name: "Demo Staff", email: "staff@demo.local" }] : staff).map((user) => <label key={user.id} className="flex items-center gap-3 rounded-lg p-2 text-sm hover:bg-[#f4f7f5]"><input name="assignees" value={user.id} type="checkbox" /><span><b>{user.full_name}</b><span className="ml-2 text-xs text-[#7a847e]">{user.email}</span></span></label>)}
+                  {!isDemo && !staff.length && <p className="p-2 text-xs text-[#b45309]">Create staff accounts under Users first.</p>}
+                </div></fieldset>
+                {error && <div className="flex gap-2 rounded-xl bg-[#fff0ee] p-3 text-sm font-semibold text-[#9e251b]"><AlertCircle size={17} />{error}</div>}
+                <Button size="lg" className="w-full" type="submit" disabled={!parsed || saving || (!isDemo && !staff.length)}>{saving ? <LoaderCircle className="animate-spin" /> : null}{saving ? "Importing master…" : "Create and open session"}</Button>
               </form>
             )}
           </Card>

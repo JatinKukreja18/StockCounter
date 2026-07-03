@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, PackageSearch, Plus, Users } from "lucide-react";
 import { PageHeading } from "@/components/admin/page-heading";
 import { StatCard } from "@/components/admin/stat-card";
@@ -8,7 +9,10 @@ import { Card } from "@/components/ui/card";
 import { demoEntries, demoIssues, demoProducts, demoSessions } from "@/lib/demo-data";
 import { formatNumber, formatTime } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export default function AdminDashboard() {
+  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true" && process.env.NEXT_PUBLIC_SUPABASE_URL) redirect("/admin/sessions");
   const completedProductIds = new Set(demoProducts.filter((product) =>
     product.batches.every((batch) => demoEntries.some((entry) => entry.productId === product.id && entry.stockBatchId === batch.id && !entry.isVoided))
   ).map((product) => product.id));

@@ -27,3 +27,20 @@ export async function getAuthenticatedUser() {
   if (error || !data.user) throw new Error("Unauthorized");
   return { supabase, user: data.user };
 }
+
+export async function getAuthenticatedProfile() {
+  const { supabase, user } = await getAuthenticatedUser();
+  const { data: profile, error } = await supabase
+    .from("users")
+    .select("id,email,full_name,role,group_name")
+    .eq("id", user.id)
+    .single();
+  if (error || !profile) throw new Error("User profile is not configured.");
+  return { supabase, user, profile: profile as { id: string; email: string; full_name: string; role: "admin" | "staff"; group_name: string | null } };
+}
+
+export async function requireAdmin() {
+  const context = await getAuthenticatedProfile();
+  if (context.profile.role !== "admin") throw new Error("Forbidden");
+  return context;
+}

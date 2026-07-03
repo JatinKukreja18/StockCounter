@@ -30,6 +30,7 @@ import { demoEntries, demoProducts, demoSessions } from "@/lib/demo-data";
 import {
   cacheProducts,
   deleteLocalEntry,
+  getCachedProducts,
   getDeviceId,
   getLocalEntries,
   getMeta,
@@ -37,13 +38,16 @@ import {
   setMeta,
   updateLocalEntry
 } from "@/lib/local-db";
-import type { LocalCountEntry, Product, StockBatch, SyncEntryResult } from "@/lib/types";
+import type { CountEntry, CountSession, LocalCountEntry, Product, StockBatch, SyncEntryResult } from "@/lib/types";
 import { formatNumber, formatTime, makeId } from "@/lib/utils";
 
 const presets = [1, 2, 5, 10];
 
 export function CountingScreen() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [sessions, setSessions] = useState<CountSession[]>([]);
+  const [serverEntries, setServerEntries] = useState<CountEntry[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState("");
   const [entries, setEntries] = useState<LocalCountEntry[]>([]);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Product | null>(null);
@@ -56,14 +60,43 @@ export function CountingScreen() {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: "green" | "red"; text: string } | null>(null);
   const [tab, setTab] = useState<"count" | "uncounted" | "queue">("count");
-  const activeSession = demoSessions[0];
+  const activeSession = sessions.find((session) => session.id === activeSessionId) ?? sessions[0];
+  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   const refreshEntries = useCallback(async () => setEntries(await getLocalEntries()), []);
+  const refreshServerData = useCallback(async () => {
+    if (isDemo) {
+      setSessions(demoSessions);
+      setProducts(demoProducts);
+      setServerEntries(demoEntries);
+      setActiveSessionId((value) => value || demoSessions[0].id);
+      await cacheProducts(demoProducts);
+      return;
+    }
+    const response = await fetch("/api/staff/bootstrap", { cache: "no-store" });
+    if (!response.ok) throw new Error("Could not load assigned sessions.");
+    const data = await response.json() as { sessions: CountSession[]; products: Product[]; entries: CountEntry[] };
+    setSessions(data.sessions);
+    setProducts(data.products);
+    setServerEntries(data.entries);
+    setActiveSessionId((value) => data.sessions.some((session) => session.id === value) ? value : data.sessions[0]?.id ?? "");
+    await cacheProducts(data.products);
+    await setMeta("assignedSessions", JSON.stringify(data.sessions));
+  }, [isDemo]);
 
   useEffect(() => {
     async function hydrate() {
-      await cacheProducts(demoProducts);
-      setProducts(demoProducts);
+      try {
+        await refreshServerData();
+      } catch {
+        setProducts(await getCachedProducts());
+        const cachedSessions = await getMeta("assignedSessions");
+        if (cachedSessions) {
+          const parsed = JSON.parse(cachedSessions) as CountSession[];
+          setSessions(parsed);
+          setActiveSessionId(parsed[0]?.id ?? "");
+        }
+      }
       setLastSync((await getMeta("lastSync")) ?? null);
       await refreshEntries();
     }
@@ -76,34 +109,34 @@ export function CountingScreen() {
       window.removeEventListener("online", setNetwork);
       window.removeEventListener("offline", setNetwork);
     };
-  }, [refreshEntries]);
+  }, [refreshEntries, refreshServerData]);
 
   const matches = useMemo(() => {
     const value = query.trim().toLowerCase();
     if (!value) return [];
     return products.filter((product) =>
-      activeSession.productIds.includes(product.id) && (
+      activeSession?.productIds.includes(product.id) && (
         product.barcode.includes(value) ||
         product.sku.toLowerCase().includes(value) ||
         product.name.toLowerCase().includes(value)
       )
     ).slice(0, 5);
-  }, [activeSession.productIds, products, query]);
+  }, [activeSession, products, query]);
 
   const pending = entries.filter((entry) => entry.syncState === "pending" || entry.syncState === "failed");
   const selectedServerCount = selected
-    ? demoEntries.filter((entry) => entry.sessionId === activeSession.id && entry.productId === selected.id && entry.stockBatchId === selectedBatch?.id && !entry.isVoided).reduce((sum, entry) => sum + entry.quantity, 0)
+    ? serverEntries.filter((entry) => entry.sessionId === activeSession?.id && entry.productId === selected.id && entry.stockBatchId === selectedBatch?.id && !entry.isVoided).reduce((sum, entry) => sum + entry.quantity, 0)
     : 0;
   const selectedLocalCount = selected
-    ? entries.filter((entry) => entry.sessionId === activeSession.id && entry.productId === selected.id && entry.stockBatchId === selectedBatch?.id && entry.syncState !== "synced").reduce((sum, entry) => sum + entry.quantity, 0)
+    ? entries.filter((entry) => entry.sessionId === activeSession?.id && entry.productId === selected.id && entry.stockBatchId === selectedBatch?.id && entry.syncState !== "synced").reduce((sum, entry) => sum + entry.quantity, 0)
     : 0;
   const countedQty = selectedServerCount + selectedLocalCount;
   const systemQty = selectedBatch?.systemQty ?? selected?.systemQty ?? 0;
   const countedBatchIds = new Set([
-    ...demoEntries.filter((entry) => entry.sessionId === activeSession.id && !entry.isVoided).map((entry) => entry.stockBatchId),
-    ...entries.filter((entry) => entry.sessionId === activeSession.id).map((entry) => entry.stockBatchId).filter((id): id is string => Boolean(id))
+    ...serverEntries.filter((entry) => entry.sessionId === activeSession?.id && !entry.isVoided).map((entry) => entry.stockBatchId),
+    ...entries.filter((entry) => entry.sessionId === activeSession?.id).map((entry) => entry.stockBatchId).filter((id): id is string => Boolean(id))
   ]);
-  const sessionProducts = products.filter((product) => activeSession.productIds.includes(product.id));
+  const sessionProducts = products.filter((product) => activeSession?.productIds.includes(product.id));
   const incompleteProducts = sessionProducts.filter((product) => product.batches.some((batch) => !countedBatchIds.has(batch.id)));
 
   function chooseProduct(product: Product) {
@@ -116,13 +149,13 @@ export function CountingScreen() {
 
   function handleBarcode(barcode: string) {
     setQuery(barcode);
-    const match = products.find((product) => product.barcode === barcode);
+    const match = products.find((product) => activeSession?.productIds.includes(product.id) && product.barcode === barcode);
     if (match) chooseProduct(match);
     else setNotice({ tone: "red", text: `Barcode ${barcode} is not in the cached stock list.` });
   }
 
   async function saveCount() {
-    if (!selected || !selectedBatch || quantity <= 0) return;
+    if (!activeSession || !selected || !selectedBatch || quantity <= 0) return;
     const now = new Date().toISOString();
     const entry: LocalCountEntry = {
       localEntryId: makeId(),
@@ -179,6 +212,7 @@ export function CountingScreen() {
         ? { tone: "red", text: `${data.results.length - failed} synced. ${failed} need attention and remain on this device.` }
         : { tone: "green", text: `${data.results.length} ${data.results.length === 1 ? "entry" : "entries"} synced successfully.` }
       );
+      await refreshServerData();
     } catch {
       await Promise.all(pending.map((entry) => updateLocalEntry(entry.localEntryId, {
         syncState: "failed",
@@ -196,7 +230,7 @@ export function CountingScreen() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[.13em] text-[#7a847e]">Tonight&apos;s count</p>
-          <h1 className="text-xl font-black tracking-tight">{activeSession.name}</h1>
+          {sessions.length > 1 ? <select value={activeSession?.id} onChange={(event) => { setActiveSessionId(event.target.value); setSelected(null); }} className="max-w-[250px] bg-transparent text-xl font-black tracking-tight outline-none">{sessions.map((session) => <option key={session.id} value={session.id}>{session.name}</option>)}</select> : <h1 className="text-xl font-black tracking-tight">{activeSession?.name ?? "No assigned session"}</h1>}
         </div>
         <Badge tone={online ? "green" : "amber"} className="gap-1.5">
           {online ? <Wifi size={12} /> : <WifiOff size={12} />}

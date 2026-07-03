@@ -3,12 +3,13 @@
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { demoEntries, demoProducts } from "@/lib/demo-data";
+import type { CountEntry, Product } from "@/lib/types";
 
-export function ExportButton({ sessionId = "s1" }: { sessionId?: string }) {
+export function ExportButton({ sessionId = "s1", products = demoProducts, entries = demoEntries }: { sessionId?: string; products?: Product[]; entries?: CountEntry[] }) {
   async function exportXlsx() {
     const XLSX = await import("xlsx");
-    const rows = demoProducts.flatMap((product) => product.batches.map((batch) => {
-      const count = demoEntries
+    const rows = products.flatMap((product) => product.batches.map((batch) => {
+      const count = entries
         .filter((entry) => entry.sessionId === sessionId && entry.productId === product.id && entry.stockBatchId === batch.id && !entry.isVoided)
         .reduce((sum, entry) => sum + entry.quantity, 0);
       return {
