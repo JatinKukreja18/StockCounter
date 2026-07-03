@@ -11,7 +11,7 @@ export function UserBadge() {
   const [name, setName] = useState("Staff");
   const [role, setRole] = useState<"admin" | "staff">("staff");
   useEffect(() => {
-    void fetch("/api/me").then(async (response) => {
+    void fetch("/api/me", { cache: "no-store" }).then(async (response) => {
       if (response.ok) {
         const profile = await response.json();
         setName(profile.fullName);

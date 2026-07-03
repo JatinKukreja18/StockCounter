@@ -19,7 +19,7 @@ export default function AdminDashboard() {
   const progress = Math.round((completedProductIds.size / demoProducts.length) * 100);
   return (
     <>
-      <PageHeading eyebrow="Live count" title="Good evening, Rohan" description="Three teams are counting the Main Store. Review progress here while staff continue working offline." action={<Link href="/admin/sessions"><Button><Plus size={17} /> New session</Button></Link>} />
+      <PageHeading eyebrow="Live count" title="Count overview" description="Three teams are counting the Main Store. Review progress here while staff continue working offline." action={<Link href="/admin/sessions"><Button><Plus size={17} /> New session</Button></Link>} />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Overall progress" value={`${progress}%`} detail={`${completedProductIds.size} of ${demoProducts.length} products fully counted`} icon={PackageSearch} />
         <StatCard label="Open sessions" value={String(demoSessions.filter((session) => session.status === "open").length)} detail="Across 3 categories" icon={Clock3} tone="neutral" />

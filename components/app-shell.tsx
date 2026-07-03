@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Boxes, ClipboardCheck, Cloud, Settings, Users } from "lucide-react";
+import { BarChart3, Boxes, ClipboardCheck, Cloud, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserBadge } from "@/components/user-badge";
 
@@ -32,9 +32,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
           <div className="flex items-center gap-2">
             <UserBadge />
-            <button className="grid size-10 place-items-center rounded-xl text-[#657069] hover:bg-[#eef2ef]" aria-label="Settings">
-              <Settings size={19} />
-            </button>
           </div>
         </div>
       </header>
