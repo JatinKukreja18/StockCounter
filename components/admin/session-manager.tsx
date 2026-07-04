@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { demoEntries, demoProducts, demoSessions } from "@/lib/demo-data";
 import { parseStockWorkbook, type GoFrugalImportResult } from "@/lib/gofrugal-import";
+import { isDemoMode } from "@/lib/runtime";
 import type { CountSession } from "@/lib/types";
 
 export function SessionManager() {
-  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const isDemo = isDemoMode();
   const [sessions, setSessions] = useState<CountSession[]>(isDemo ? demoSessions : []);
   const [loading, setLoading] = useState(!isDemo);
   const [creating, setCreating] = useState(false);

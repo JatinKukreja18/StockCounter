@@ -26,6 +26,11 @@ import { BarcodeScanner } from "@/components/barcode-scanner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  getCountedBatchIds,
+  indexActiveCountQuantities,
+  indexUnsyncedCountQuantities
+} from "@/lib/counting";
 import { demoEntries, demoProducts, demoSessions } from "@/lib/demo-data";
 import {
   cacheProducts,
@@ -39,6 +44,7 @@ import {
   updateLocalEntry
 } from "@/lib/local-db";
 import type { CountEntry, CountSession, LocalCountEntry, Product, StockBatch, SyncEntryResult } from "@/lib/types";
+import { isDemoMode } from "@/lib/runtime";
 import { formatNumber, formatTime, makeId } from "@/lib/utils";
 
 const presets = [1, 2, 5, 10];
@@ -61,7 +67,7 @@ export function CountingScreen() {
   const [notice, setNotice] = useState<{ tone: "green" | "red"; text: string } | null>(null);
   const [tab, setTab] = useState<"count" | "uncounted" | "queue">("count");
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? sessions[0];
-  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const isDemo = isDemoMode();
 
   const refreshEntries = useCallback(async () => setEntries(await getLocalEntries()), []);
   const refreshServerData = useCallback(async () => {
@@ -124,18 +130,27 @@ export function CountingScreen() {
   }, [activeSession, products, query]);
 
   const pending = entries.filter((entry) => entry.syncState === "pending" || entry.syncState === "failed");
+  const activeSessionIdForCounts = activeSession?.id ?? "";
+  const serverCountsByBatch = useMemo(
+    () => indexActiveCountQuantities(serverEntries, activeSessionIdForCounts),
+    [activeSessionIdForCounts, serverEntries]
+  );
+  const localCountsByBatch = useMemo(
+    () => indexUnsyncedCountQuantities(entries, activeSessionIdForCounts),
+    [activeSessionIdForCounts, entries]
+  );
   const selectedServerCount = selected
-    ? serverEntries.filter((entry) => entry.sessionId === activeSession?.id && entry.productId === selected.id && entry.stockBatchId === selectedBatch?.id && !entry.isVoided).reduce((sum, entry) => sum + entry.quantity, 0)
+    ? serverCountsByBatch.get(selectedBatch?.id ?? "") ?? 0
     : 0;
   const selectedLocalCount = selected
-    ? entries.filter((entry) => entry.sessionId === activeSession?.id && entry.productId === selected.id && entry.stockBatchId === selectedBatch?.id && entry.syncState !== "synced").reduce((sum, entry) => sum + entry.quantity, 0)
+    ? localCountsByBatch.get(selectedBatch?.id ?? "") ?? 0
     : 0;
   const countedQty = selectedServerCount + selectedLocalCount;
   const systemQty = selectedBatch?.systemQty ?? selected?.systemQty ?? 0;
-  const countedBatchIds = new Set([
-    ...serverEntries.filter((entry) => entry.sessionId === activeSession?.id && !entry.isVoided).map((entry) => entry.stockBatchId),
-    ...entries.filter((entry) => entry.sessionId === activeSession?.id).map((entry) => entry.stockBatchId).filter((id): id is string => Boolean(id))
-  ]);
+  const countedBatchIds = useMemo(
+    () => getCountedBatchIds(serverEntries, entries, activeSessionIdForCounts),
+    [activeSessionIdForCounts, entries, serverEntries]
+  );
   const sessionProducts = products.filter((product) => activeSession?.productIds.includes(product.id));
   const incompleteProducts = sessionProducts.filter((product) => product.batches.some((batch) => !countedBatchIds.has(batch.id)));
 

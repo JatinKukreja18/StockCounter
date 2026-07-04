@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import {
+  mapCountEntries,
+  mapSessionProducts,
+  type RawCountEntry,
+  type SessionProductMapping
+} from "@/lib/session-data";
 import { getAuthenticatedProfile } from "@/lib/supabase/server";
 
 export async function GET() {
@@ -20,39 +26,15 @@ export async function GET() {
         .in("session_id", sessionIds),
       supabase
         .from("count_entries")
-        .select("id,local_entry_id,session_id,product_id,stock_batch_id,user_id,quantity,area,note,is_voided,created_on_device_at")
+        .select("id,local_entry_id,session_id,product_id,stock_batch_id,user_id,quantity,area,note,is_voided,created_on_device_at,users(full_name)")
         .in("session_id", sessionIds)
     ]);
     if (mappingError) throw mappingError;
     if (entryError) throw entryError;
 
-    type Mapping = {
-      session_id: string; system_qty_snapshot: number | string; stock_version_snapshot: string;
-      products: { id: string; barcode: string; sku: string; name: string; category: string; store: string } | null;
-      stock_batches: { id: string; batch_no: string | null; inward_tranno: string | null; expiry_date: string | null } | null;
-    };
-    const typedMappings = (mappings ?? []) as unknown as Mapping[];
-    const productMap = new Map<string, {
-      id: string; barcode: string; sku: string; name: string; category: string; store: string;
-      systemQty: number; stockVersion: string; batches: Array<{ id: string; batchNo?: string; inwardTranno?: string; expiryDate?: string; systemQty: number; stockVersion: string }>;
-    }>();
-    for (const mapping of typedMappings) {
-      if (!mapping.products || !mapping.stock_batches) continue;
-      const existing = productMap.get(mapping.products.id) ?? {
-        ...mapping.products, systemQty: 0, stockVersion: mapping.stock_version_snapshot, batches: []
-      };
-      const quantity = Number(mapping.system_qty_snapshot);
-      existing.systemQty += quantity;
-      existing.batches.push({
-        id: mapping.stock_batches.id,
-        batchNo: mapping.stock_batches.batch_no ?? undefined,
-        inwardTranno: mapping.stock_batches.inward_tranno ?? undefined,
-        expiryDate: mapping.stock_batches.expiry_date?.slice(0, 10),
-        systemQty: quantity,
-        stockVersion: mapping.stock_version_snapshot
-      });
-      productMap.set(existing.id, existing);
-    }
+    type BootstrapMapping = SessionProductMapping & { session_id: string };
+    const typedMappings = (mappings ?? []) as unknown as BootstrapMapping[];
+    const products = mapSessionProducts(typedMappings);
 
     const sessions = (sessionRows ?? []).map((row) => {
       const source = row as unknown as {
@@ -66,12 +48,11 @@ export async function GET() {
         assignees: [], createdAt: source.created_at
       };
     });
-    const mappedEntries = (entries ?? []).map((entry) => ({
-      id: entry.id, localEntryId: entry.local_entry_id, sessionId: entry.session_id, productId: entry.product_id,
-      stockBatchId: entry.stock_batch_id, userId: entry.user_id, userName: "Staff", quantity: Number(entry.quantity),
-      area: entry.area ?? undefined, note: entry.note ?? undefined, isVoided: entry.is_voided, createdAt: entry.created_on_device_at
-    }));
-    return NextResponse.json({ sessions, products: [...productMap.values()], entries: mappedEntries });
+    return NextResponse.json({
+      sessions,
+      products,
+      entries: mapCountEntries((entries ?? []) as unknown as RawCountEntry[])
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load assigned sessions";
     return NextResponse.json({ error: message }, { status: 401 });

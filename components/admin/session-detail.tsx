@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Circle, Lock, MoreHorizontal, Pencil, Trash2, Users } from "lucide-react";
 import { ExportButton } from "@/components/admin/export-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { indexActiveCountQuantities } from "@/lib/counting";
 import { demoEntries, demoProducts } from "@/lib/demo-data";
+import { isDemoMode } from "@/lib/runtime";
 import type { CountEntry, CountSession, Product } from "@/lib/types";
 import { formatNumber, formatTime } from "@/lib/utils";
 
 export function SessionDetail({ session }: { session: CountSession }) {
-  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const isDemo = isDemoMode();
   const [sessionData, setSessionData] = useState(session);
   const [closed, setClosed] = useState(session.status === "closed");
   const [products, setProducts] = useState<Product[]>(isDemo ? demoProducts.filter((product) => session.productIds.includes(product.id)) : []);
@@ -27,6 +29,7 @@ export function SessionDetail({ session }: { session: CountSession }) {
     });
   }, [isDemo, session.id]);
   const batchRows = products.flatMap((product) => product.batches.map((batch) => ({ product, batch })));
+  const countsByBatch = useMemo(() => indexActiveCountQuantities(entries, session.id), [entries, session.id]);
   const [tab, setTab] = useState<"variance" | "history">("variance");
   async function closeSession() {
     if (!window.confirm("Close this session? Staff will no longer be able to sync entries into it.")) return;
@@ -69,7 +72,7 @@ export function SessionDetail({ session }: { session: CountSession }) {
             <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="bg-[#f7f9f7] text-xs text-[#68726c]"><tr>{["Product", "Batch / inward ref", "Expiry", "System qty", "Count qty", "Difference", "Status", ""].map((item) => <th key={item} className="px-5 py-3 font-bold">{item}</th>)}</tr></thead>
               <tbody>{batchRows.map(({ product, batch }) => {
-                const count = entries.filter((entry) => entry.sessionId === session.id && entry.productId === product.id && entry.stockBatchId === batch.id && !entry.isVoided).reduce((sum, entry) => sum + entry.quantity, 0);
+                const count = countsByBatch.get(batch.id) ?? 0;
                 const difference = count - batch.systemQty;
                 return (
                   <tr key={batch.id} className="border-t border-[#e8ece9]">

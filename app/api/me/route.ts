@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { isDemoMode } from "@/lib/runtime";
 import { getAuthenticatedProfile } from "@/lib/supabase/server";
 
 export async function GET() {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (isDemoMode()) {
     return NextResponse.json({ id: "demo", email: "demo@sekai.local", fullName: "Demo Admin", role: "admin" });
   }
   try {

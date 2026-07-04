@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { demoProducts, demoSessions } from "@/lib/demo-data";
+import { isDemoMode } from "@/lib/runtime";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import type { IssueCode, SyncEntryResult } from "@/lib/types";
 
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid sync batch", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (isDemoMode()) {
     return NextResponse.json({ results: demoSync(parsed.data.entries), syncedAt: new Date().toISOString() });
   }
 

@@ -6,11 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { demoIssues } from "@/lib/demo-data";
+import { isDemoMode } from "@/lib/runtime";
 import type { SyncIssue } from "@/lib/types";
 import { formatTime } from "@/lib/utils";
 
 export function IssuesQueue() {
-  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const isDemo = isDemoMode();
   const [issues, setIssues] = useState<SyncIssue[]>(isDemo ? demoIssues : []);
   const [loading, setLoading] = useState(!isDemo);
   const [query, setQuery] = useState("");

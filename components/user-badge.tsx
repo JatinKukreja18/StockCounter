@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LayoutDashboard, LogOut, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { isDemoMode } from "@/lib/runtime";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function UserBadge() {
@@ -20,7 +21,7 @@ export function UserBadge() {
     });
   }, []);
   async function logout() {
-    if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true" && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    if (!isDemoMode()) {
       await createSupabaseBrowserClient().auth.signOut();
     }
     router.replace("/login");
