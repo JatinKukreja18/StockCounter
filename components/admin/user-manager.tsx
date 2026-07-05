@@ -23,21 +23,32 @@ export function UserManager() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setSaving(true);
     setMessage("");
-    const form = new FormData(event.currentTarget);
-    const response = await fetch("/api/admin/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: form.get("email"), fullName: form.get("fullName"), password: form.get("password"), role: "staff" })
-    });
-    const data = await response.json();
-    if (response.ok) {
-      event.currentTarget.reset();
+    const form = new FormData(formElement);
+
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.get("email"), fullName: form.get("fullName"), password: form.get("password"), role: "staff" })
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.error || "Could not create account.");
+        return;
+      }
+
+      formElement.reset();
       setMessage(data.existing ? "This staff account already exists—no duplicate was created." : "Staff account created. Share the temporary password securely.");
       await load();
-    } else setMessage(data.error || "Could not create account.");
-    setSaving(false);
+    } catch {
+      setMessage("Could not create account. Check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
