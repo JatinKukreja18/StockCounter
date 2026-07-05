@@ -12,7 +12,10 @@ In Supabase Dashboard, open **SQL Editor → New query** and run these files in 
 
 `supabase/migrations/0004_mobile_pin_auth.sql`
 
-The later migrations enable explicit zero counts and mobile/PIN staff accounts.
+`supabase/migrations/0005_authorization_hardening.sql`
+
+The later migrations enable explicit zero counts, mobile/PIN staff accounts,
+and strict assignment-based access for staff.
 
 In **Authentication → Providers → Phone**, enable the Phone provider. Staff accounts are created and phone-confirmed by the admin, so this workflow does not send OTP messages.
 

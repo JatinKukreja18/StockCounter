@@ -2,14 +2,20 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
     return NextResponse.next();
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    return new NextResponse("Authentication is not configured.", { status: 503 });
   }
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    key,
     {
       cookies: {
         getAll: () => request.cookies.getAll(),
@@ -44,6 +50,9 @@ export async function middleware(request: NextRequest) {
       url.pathname = "/count";
       return NextResponse.redirect(url);
     }
+  }
+  if (path.startsWith("/admin") || path === "/count") {
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
   }
   return response;
 }

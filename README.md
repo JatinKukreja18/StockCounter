@@ -10,7 +10,9 @@ npm install
 npm run dev
 ```
 
-Set `NEXT_PUBLIC_DEMO_MODE=true` to use the included demonstration data without Supabase. The counting queue still uses real IndexedDB and the sync endpoint simulates routing and validation.
+For local development only, set `NEXT_PUBLIC_DEMO_MODE=true` to use the included
+demonstration data without Supabase. Production builds always require
+authentication even if that variable is accidentally enabled.
 
 ## Supabase setup
 

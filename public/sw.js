@@ -1,4 +1,4 @@
-const CACHE = "sekai-stock-count-v1";
+const CACHE = "sekai-stock-count-v2";
 const APP_SHELL = ["/count", "/offline", "/manifest.webmanifest", "/icons/icon.svg", "/icons/maskable.svg"];
 
 self.addEventListener("install", (event) => {
@@ -21,11 +21,17 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
+    if (url.pathname.startsWith("/admin") || url.pathname === "/login") {
+      event.respondWith(fetch(request).catch(() => caches.match("/offline")));
+      return;
+    }
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          if (response.ok && !response.redirected) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy));
+          }
           return response;
         })
         .catch(async () => (await caches.match(request)) || (await caches.match("/count")) || caches.match("/offline"))
