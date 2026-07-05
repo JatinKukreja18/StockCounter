@@ -40,7 +40,9 @@ export function SessionManager() {
     try {
       const XLSX = await import("xlsx");
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
-      setParsed(parseStockWorkbook(XLSX, workbook));
+      const result = parseStockWorkbook(XLSX, workbook);
+      if (!result.products.length) throw new Error("No stock products were found. Export GoFrugal Current Stock Detail as XLS or XLSX.");
+      setParsed(result);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not parse the Excel file.");
     }
@@ -71,8 +73,20 @@ export function SessionManager() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: form.get("name"), fileName: masterFile, products: parsed.products, assigneeIds })
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Session import failed.");
+        const responseText = await response.text();
+        let data: { error?: string; details?: string; hint?: string } = {};
+        if (responseText) {
+          try {
+            data = JSON.parse(responseText) as typeof data;
+          } catch {
+            if (!response.ok) throw new Error(responseText);
+            throw new Error("The server returned an unreadable response.");
+          }
+        }
+        if (!response.ok) {
+          const context = [data.error, data.details, data.hint].filter(Boolean).join(" ");
+          throw new Error(context || `Session import failed (${response.status}).`);
+        }
         await loadRealData();
       }
       setCreated(true);

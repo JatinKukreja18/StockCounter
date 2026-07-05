@@ -6,7 +6,7 @@ import { ExportButton } from "@/components/admin/export-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { indexActiveCountQuantities } from "@/lib/counting";
+import { indexActiveProductCountQuantities } from "@/lib/counting";
 import { demoEntries, demoProducts } from "@/lib/demo-data";
 import { isDemoMode } from "@/lib/runtime";
 import type { CountEntry, CountSession, Product } from "@/lib/types";
@@ -28,8 +28,7 @@ export function SessionDetail({ session }: { session: CountSession }) {
       setEntries(data.entries);
     });
   }, [isDemo, session.id]);
-  const batchRows = products.flatMap((product) => product.batches.map((batch) => ({ product, batch })));
-  const countsByBatch = useMemo(() => indexActiveCountQuantities(entries, session.id), [entries, session.id]);
+  const countsByProduct = useMemo(() => indexActiveProductCountQuantities(entries, session.id), [entries, session.id]);
   const [tab, setTab] = useState<"variance" | "history">("variance");
   async function closeSession() {
     if (!window.confirm("Close this session? Staff will no longer be able to sync entries into it.")) return;
@@ -43,7 +42,7 @@ export function SessionDetail({ session }: { session: CountSession }) {
     let quantity: number | undefined;
     if (action === "correct") {
       const value = window.prompt("Enter corrected quantity");
-      if (!value || Number(value) <= 0) return;
+      if (value === null || Number(value) < 0) return;
       quantity = Number(value);
     } else if (!window.confirm("Void this entry? Its quantity will be removed from the count.")) return;
     if (!isDemo) {
@@ -70,19 +69,17 @@ export function SessionDetail({ session }: { session: CountSession }) {
         {tab === "variance" ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] text-left text-sm">
-              <thead className="bg-[#f7f9f7] text-xs text-[#68726c]"><tr>{["Product", "Batch / inward ref", "Expiry", "System qty", "Count qty", "Difference", "Status", ""].map((item) => <th key={item} className="px-5 py-3 font-bold">{item}</th>)}</tr></thead>
-              <tbody>{batchRows.map(({ product, batch }) => {
-                const count = countsByBatch.get(batch.id) ?? 0;
-                const difference = count - batch.systemQty;
+              <thead className="bg-[#f7f9f7] text-xs text-[#68726c]"><tr>{["Product", "System qty", "Count qty", "Difference", "Status", ""].map((item) => <th key={item} className="px-5 py-3 font-bold">{item}</th>)}</tr></thead>
+              <tbody>{products.map((product) => {
+                const count = countsByProduct.get(product.id) ?? 0;
+                const difference = count - product.systemQty;
                 return (
-                  <tr key={batch.id} className="border-t border-[#e8ece9]">
+                  <tr key={product.id} className="border-t border-[#e8ece9]">
                     <td className="px-5 py-4"><p className="font-bold">{product.name}</p><p className="mt-1 text-xs text-[#7a847e]">{product.sku} · {product.barcode}</p></td>
-                    <td className="px-5 py-4 font-semibold">{batch.batchNo || batch.inwardTranno || "Unlabelled"}</td>
-                    <td className="px-5 py-4 font-semibold">{batch.expiryDate || <span className="text-[#b45309]">No expiry</span>}</td>
-                    <td className="tabular px-5 py-4 font-semibold">{formatNumber(batch.systemQty)}</td>
+                    <td className="tabular px-5 py-4 font-semibold">{formatNumber(product.systemQty)}</td>
                     <td className="tabular px-5 py-4 font-black">{formatNumber(count)}</td>
                     <td className={`tabular px-5 py-4 font-black ${difference ? "text-[#b45309]" : "text-[#18794e]"}`}>{difference > 0 ? "+" : ""}{formatNumber(difference)}</td>
-                    <td className="px-5 py-4">{count === 0 ? <Badge>Not counted</Badge> : difference === 0 ? <Badge tone="green">Matched</Badge> : <Badge tone="amber">Variance</Badge>}</td>
+                    <td className="px-5 py-4">{!countsByProduct.has(product.id) ? <Badge>Not counted</Badge> : difference === 0 ? <Badge tone="green">Matched</Badge> : <Badge tone="amber">Variance</Badge>}</td>
                     <td className="px-5 py-4"><button className="text-[#7a847e]"><MoreHorizontal size={18} /></button></td>
                   </tr>
                 );

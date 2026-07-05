@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/supabase/server";
 const schema = z.object({
   entryId: z.string().uuid(),
   action: z.enum(["void", "correct"]),
-  quantity: z.number().positive().optional(),
+  quantity: z.number().nonnegative().optional(),
   note: z.string().max(500).optional()
 });
 

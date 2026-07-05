@@ -43,6 +43,7 @@ export interface GoFrugalImportResult {
 }
 
 const clean = (value: unknown) => String(value ?? "").trim();
+const normalizeHeader = (value: unknown) => clean(value).toUpperCase().replace(/\s+/g, " ");
 
 function numberFrom(value: unknown): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -63,10 +64,23 @@ function headerIndex(row: unknown[], name: string) {
   return row.findIndex((value) => clean(value) === name);
 }
 
+function normalizedHeaderIndex(row: unknown[], name: string) {
+  const target = normalizeHeader(name);
+  return row.findIndex((value) => normalizeHeader(value) === target);
+}
+
+function findNormalizedHeaderRow(rows: unknown[][], requiredHeaders: string[]) {
+  const required = requiredHeaders.map(normalizeHeader);
+  return rows.findIndex((row) => {
+    const values = new Set(row.map(normalizeHeader));
+    return required.every((header) => values.has(header));
+  });
+}
+
 function reportCategory(rows: unknown[][]) {
   for (const row of rows.slice(0, 10)) {
     for (const value of row) {
-      const match = clean(value).match(/CATEGORY\s*:\s*([^;\n]+)/i);
+      const match = clean(value).match(/CATEGORY\s*[:=]\s*([^;\n]+)/i);
       if (match) return match[1].trim();
     }
   }
@@ -80,6 +94,39 @@ function reportStore(rows: unknown[][]) {
   const code = companyMatch[1].trim();
   const name = companyMatch[2].trim().replace(/(\D)\d{10}$/, "$1");
   return name ? `${code} · ${name}` : code;
+}
+
+function reportCompany(rows: unknown[][]) {
+  for (const row of rows.slice(0, 10)) {
+    for (const value of row) {
+      const text = clean(value);
+      const labelled = text.match(/^Company Name\s*:\s*(.+)$/i);
+      if (labelled) return labelled[1].trim();
+      if (/ASIANA FOOD AND BEVERAGE LLP/i.test(text)) return "ASIANA FOOD AND BEVERAGE LLP";
+    }
+  }
+  return "ASIANA FOOD AND BEVERAGE LLP";
+}
+
+function productTotalBatch(product: ImportedStockProduct): ImportedStockProduct {
+  const purchasePrices = new Set(product.batches.map((batch) => batch.purchasePrice));
+  const landingCosts = new Set(product.batches.map((batch) => batch.landingCost));
+  const distributors = new Set(product.batches.map((batch) => batch.distributor).filter(Boolean));
+  return {
+    ...product,
+    batchCount: 1,
+    batches: [{
+      batchKey: `${product.sku}::product-total`,
+      batchNo: "",
+      expiryDate: null,
+      inwardTranno: "",
+      transactionDate: null,
+      currentStock: product.systemQty,
+      purchasePrice: purchasePrices.size === 1 ? [...purchasePrices][0] : null,
+      landingCost: landingCosts.size === 1 ? [...landingCosts][0] : null,
+      distributor: distributors.size === 1 ? [...distributors][0] : ""
+    }]
+  };
 }
 
 function parseGoFrugalSheet(
@@ -118,7 +165,7 @@ function parseGoFrugalSheet(
 
   const category = reportCategory(rows);
   const store = reportStore(rows);
-  const company = clean(rows[1]?.[0]) || "ASIANA FOOD AND BEVERAGE LLP";
+  const company = reportCompany(rows);
   const products: ImportedStockProduct[] = [];
   const warnings: string[] = [];
   let current: ImportedStockProduct | null = null;
@@ -135,7 +182,7 @@ function parseGoFrugalSheet(
       if (Math.abs(batchTotal - current.systemQty) > 0.001) {
         warnings.push(`${current.product} (${current.sku}): batch stock ${batchTotal} does not match product stock ${current.systemQty}.`);
       }
-      products.push(current);
+      products.push(productTotalBatch(current));
     }
     current = null;
   }
@@ -227,6 +274,148 @@ function parseGoFrugalSheet(
   };
 }
 
+function parseGoFrugalFlatSheet(
+  XLSX: typeof import("xlsx"),
+  sheet: WorkSheet,
+  sheetName: string
+): GoFrugalImportResult {
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: "",
+    raw: false,
+    blankrows: true
+  });
+  const headerRowIndex = findNormalizedHeaderRow(rows.slice(0, 20), ["ITEM CODE", "CURRENT STK.", "EAN CODE"]);
+  if (headerRowIndex < 0) throw new Error("This sheet does not contain GoFrugal Current Stock Detail columns.");
+
+  const headers = rows[headerRowIndex];
+  const columns = {
+    category: normalizedHeaderIndex(headers, "CATEGORY"),
+    subCategory: normalizedHeaderIndex(headers, "SUB CATEGORY"),
+    itemCode: normalizedHeaderIndex(headers, "ITEM CODE"),
+    currentStock: normalizedHeaderIndex(headers, "CURRENT STK."),
+    ean: normalizedHeaderIndex(headers, "EAN CODE"),
+    barcodeValue: normalizedHeaderIndex(headers, "BARCODE VALUE"),
+    selling: normalizedHeaderIndex(headers, "SELLING"),
+    purchasePrice: normalizedHeaderIndex(headers, "PUR PRICE"),
+    mrp: normalizedHeaderIndex(headers, "MRP"),
+    landingCost: normalizedHeaderIndex(headers, "LANDING COST"),
+    batchNo: normalizedHeaderIndex(headers, "BATCH NO"),
+    expiryDate: normalizedHeaderIndex(headers, "EXPIRY DATE"),
+    inwardTranno: normalizedHeaderIndex(headers, "INWARD TRANNO"),
+    transactionDate: normalizedHeaderIndex(headers, "TRAN DATE"),
+    distributor: normalizedHeaderIndex(headers, "DIST. NAME"),
+    rack: normalizedHeaderIndex(headers, "RACK"),
+    shelf: normalizedHeaderIndex(headers, "SHELF"),
+    box: normalizedHeaderIndex(headers, "BOX")
+  };
+
+  const category = reportCategory(rows);
+  const company = reportCompany(rows);
+  const address = rows.slice(0, 10).flat().map(clean).find((value) => /^Company Address:/i.test(value));
+  const addressParts = address?.replace(/^Company Address:/i, "").split(",").map((part) => part.trim()).filter(Boolean) ?? [];
+  const store = addressParts.length > 1 ? `${addressParts[0]} · ${addressParts[1]}` : addressParts[0] || "Main Store";
+  const products: ImportedStockProduct[] = [];
+  const warnings: string[] = [];
+  let current: ImportedStockProduct | null = null;
+  let batchRows = 0;
+  let grandTotal: number | null = null;
+
+  function finishCurrent() {
+    if (!current) return;
+    if (!current.sku) {
+      warnings.push(`${current.product}: missing Item Code; row skipped.`);
+    } else {
+      if (!current.barcode) warnings.push(`${current.product} (${current.sku}): EAN Code is missing; search will still work.`);
+      const batchTotal = current.batches.reduce((sum, batch) => sum + batch.currentStock, 0);
+      if (Math.abs(batchTotal - current.systemQty) > 0.001) {
+        warnings.push(`${current.product} (${current.sku}): batch stock ${batchTotal} does not match product stock ${current.systemQty}.`);
+      }
+      products.push(productTotalBatch(current));
+    }
+    current = null;
+  }
+
+  for (const [offset, row] of rows.slice(headerRowIndex + 1).entries()) {
+    const firstCell = clean(row[0]);
+    const itemMatch = firstCell.match(/^ITEM NAME\s*:\s*(.+)$/i);
+    if (itemMatch) {
+      finishCurrent();
+      current = {
+        barcode: "",
+        sku: "",
+        product: itemMatch[1].trim(),
+        category,
+        department: "",
+        store,
+        location: "",
+        systemQty: 0,
+        sellingPrice: null,
+        mrp: null,
+        batchCount: 0,
+        batches: []
+      };
+      continue;
+    }
+
+    if (/^GROUP TOTAL\b/i.test(firstCell) && current) {
+      current.systemQty = numberFrom(row[columns.currentStock]) ?? current.systemQty;
+      finishCurrent();
+      continue;
+    }
+
+    if (/^(NET|GRAND) TOTAL\b/i.test(firstCell)) {
+      finishCurrent();
+      grandTotal = numberFrom(row[columns.currentStock]);
+      break;
+    }
+
+    const itemCode = clean(row[columns.itemCode]);
+    if (!itemCode || !current) continue;
+    batchRows += 1;
+    current.batchCount += 1;
+    current.sku ||= itemCode;
+    current.barcode ||= clean(row[columns.ean]) || clean(row[columns.barcodeValue]);
+    current.category ||= clean(row[columns.category]);
+    current.department ||= clean(row[columns.subCategory]);
+    current.sellingPrice ??= numberFrom(row[columns.selling]);
+    current.mrp ??= numberFrom(row[columns.mrp]);
+    const location = [
+      clean(row[columns.rack]) && `Rack ${clean(row[columns.rack])}`,
+      clean(row[columns.shelf]) && `Shelf ${clean(row[columns.shelf])}`,
+      clean(row[columns.box]) && `Box ${clean(row[columns.box])}`
+    ].filter(Boolean).join(" · ");
+    current.location ||= location;
+    const rawBatchNo = clean(row[columns.batchNo]);
+    const batchNo = rawBatchNo && !["none", "null", "."].includes(rawBatchNo.toLowerCase()) ? rawBatchNo : "";
+    const inwardTranno = clean(row[columns.inwardTranno]);
+    const expiryDate = clean(row[columns.expiryDate]) || null;
+    current.batches.push({
+      batchKey: [itemCode, batchNo || inwardTranno || `row-${headerRowIndex + offset + 2}`, expiryDate || "no-expiry"].join("::"),
+      batchNo,
+      expiryDate,
+      inwardTranno,
+      transactionDate: clean(row[columns.transactionDate]) || null,
+      currentStock: numberFrom(row[columns.currentStock]) ?? 0,
+      purchasePrice: numberFrom(row[columns.purchasePrice]),
+      landingCost: numberFrom(row[columns.landingCost]),
+      distributor: clean(row[columns.distributor])
+    });
+  }
+  finishCurrent();
+
+  const productTotal = products.reduce((sum, product) => sum + product.systemQty, 0);
+  if (grandTotal !== null && Math.abs(productTotal - grandTotal) > 0.001) {
+    warnings.push(`Product stock total ${productTotal} does not match report Net Total ${grandTotal}.`);
+  }
+  return {
+    format: "gofrugal-current-stock",
+    products,
+    warnings,
+    metadata: { company, store, category, sheetName, sourceRows: rows.length, batchRows, grandTotal }
+  };
+}
+
 function parseGenericSheet(
   XLSX: typeof import("xlsx"),
   sheet: WorkSheet,
@@ -280,7 +469,9 @@ export function parseStockWorkbook(XLSX: typeof import("xlsx"), workbook: WorkBo
   const sheet = workbook.Sheets[sheetName];
   const preview = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: false, range: 0 });
   const goFrugalHeader = findHeaderRow(preview.slice(0, 20), ["Item Name", "Item Code", "Current Stock", "EAN Code"]);
-  return goFrugalHeader >= 0
-    ? parseGoFrugalSheet(XLSX, sheet, sheetName)
+  if (goFrugalHeader >= 0) return parseGoFrugalSheet(XLSX, sheet, sheetName);
+  const flatGoFrugalHeader = findNormalizedHeaderRow(preview.slice(0, 20), ["ITEM CODE", "CURRENT STK.", "EAN CODE"]);
+  return flatGoFrugalHeader >= 0
+    ? parseGoFrugalFlatSheet(XLSX, sheet, sheetName)
     : parseGenericSheet(XLSX, sheet, sheetName);
 }

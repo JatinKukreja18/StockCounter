@@ -115,7 +115,7 @@ begin
     update public.count_entries set is_voided = true where id = v_issue.entry_id returning * into v_entry;
   end if;
   if p_resolution = 'corrected' then
-    if p_quantity is null or p_quantity <= 0 then raise exception 'A positive corrected quantity is required'; end if;
+    if p_quantity is null or p_quantity < 0 then raise exception 'A non-negative corrected quantity is required'; end if;
     insert into public.count_entries (
       local_entry_id, device_id, session_id, product_id, stock_batch_id,
       user_id, quantity, area, note, created_on_device_at, corrected_from_id
@@ -178,7 +178,7 @@ begin
   where id = p_entry_id and not is_voided returning * into v_entry;
   if not found then raise exception 'Active entry not found'; end if;
   if p_action = 'correct' then
-    if p_quantity is null or p_quantity <= 0 then raise exception 'A positive corrected quantity is required'; end if;
+    if p_quantity is null or p_quantity < 0 then raise exception 'A non-negative corrected quantity is required'; end if;
     insert into public.count_entries (
       local_entry_id, device_id, session_id, product_id, stock_batch_id,
       user_id, quantity, area, note, created_on_device_at, corrected_from_id

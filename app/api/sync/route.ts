@@ -16,7 +16,7 @@ const entrySchema = z.object({
   batchNo: z.string().optional(),
   inwardTranno: z.string().optional(),
   expiryDate: z.string().optional(),
-  quantity: z.number().positive().max(100000),
+  quantity: z.number().nonnegative().max(100000),
   area: z.string().max(100).optional(),
   note: z.string().max(500).optional(),
   deviceId: z.string().uuid(),

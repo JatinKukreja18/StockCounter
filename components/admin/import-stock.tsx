@@ -49,7 +49,7 @@ export function ImportStock() {
             <span className="grid size-10 place-items-center rounded-xl bg-[#e9f6ef] text-[#18794e]"><FileSpreadsheet size={20} /></span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold">{fileName}</p>
-              <p className="text-xs text-[#7a847e]">{result?.products.length} products · {result?.metadata.batchRows} countable batches</p>
+              <p className="text-xs text-[#7a847e]">{result?.products.length} product totals · {result?.metadata.batchRows} source stock lines</p>
             </div>
             <button onClick={() => { setResult(null); setDone(false); }} className="text-[#7a847e]"><X size={18} /></button>
           </div>
@@ -69,18 +69,18 @@ export function ImportStock() {
           <div className="max-h-72 overflow-auto">
             <table className="w-full min-w-[820px] text-left text-xs">
               <thead className="sticky top-0 bg-[#f7f9f7] text-[#68726c]">
-                <tr>{["EAN Code", "Item Code", "Product", "Batch / inward ref", "Expiry", "Location", "Batch stock"].map((heading) => <th key={heading} className="px-4 py-3 font-bold">{heading}</th>)}</tr>
+                <tr>{["EAN Code", "Item Code", "Product", "Location", "System total"].map((heading) => <th key={heading} className="px-4 py-3 font-bold">{heading}</th>)}</tr>
               </thead>
               <tbody>{rows.slice(0, 50).map(({ product, batch }, index) => (
                 <tr key={`${batch.batchKey}-${index}`} className="border-t border-[#eef1ef]">
-                  <td className="px-4 py-3">{product.barcode || <span className="text-[#b45309]">Missing</span>}</td><td className="px-4 py-3 font-semibold">{product.sku}</td><td className="px-4 py-3">{product.product}</td><td className="px-4 py-3">{batch.batchNo || batch.inwardTranno || "Unlabelled"}</td><td className={`px-4 py-3 font-semibold ${batch.expiryDate ? "" : "text-[#b45309]"}`}>{batch.expiryDate || "No expiry"}</td><td className="px-4 py-3">{product.location || "—"}</td><td className="px-4 py-3 font-bold">{batch.currentStock.toLocaleString("en-IN")}</td>
+                  <td className="px-4 py-3">{product.barcode || <span className="text-[#b45309]">Missing</span>}</td><td className="px-4 py-3 font-semibold">{product.sku}</td><td className="px-4 py-3">{product.product}</td><td className="px-4 py-3">{product.location || "—"}</td><td className="px-4 py-3 font-bold">{batch.currentStock.toLocaleString("en-IN")}</td>
                 </tr>
               ))}</tbody>
             </table>
           </div>
           <div className="flex items-center justify-between border-t border-[#e8ece9] p-4">
-            <p className="text-xs text-[#7a847e]">{rows.length > 50 ? `Previewing 50 of ${rows.length} batches` : "All batches shown"}</p>
-            <Button onClick={() => setDone(true)} disabled={done}>{done ? <Check size={17} /> : <Upload size={17} />}{done ? "Imported" : `Import ${result?.products.length ?? 0} products / ${rows.length} batches`}</Button>
+            <p className="text-xs text-[#7a847e]">{rows.length > 50 ? `Previewing 50 of ${rows.length} products` : "All products shown"}</p>
+            <Button onClick={() => setDone(true)} disabled={done}>{done ? <Check size={17} /> : <Upload size={17} />}{done ? "Imported" : `Import ${result?.products.length ?? 0} product totals`}</Button>
           </div>
         </div>
       )}

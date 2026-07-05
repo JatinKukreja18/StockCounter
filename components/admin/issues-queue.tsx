@@ -27,7 +27,7 @@ export function IssuesQueue() {
     let quantity: number | undefined;
     if (status === "corrected") {
       const value = window.prompt("Enter the corrected positive quantity");
-      if (!value || Number(value) <= 0) return;
+      if (value === null || Number(value) < 0) return;
       quantity = Number(value);
     }
     if (!isDemo) {

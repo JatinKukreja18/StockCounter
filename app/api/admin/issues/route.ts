@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/supabase/server";
 
 const resolveSchema = z.discriminatedUnion("resolution", [
-  z.object({ issueId: z.string().uuid(), resolution: z.enum(["accepted", "corrected", "voided"]), quantity: z.number().positive().optional(), note: z.string().max(500).optional() }),
+  z.object({ issueId: z.string().uuid(), resolution: z.enum(["accepted", "corrected", "voided"]), quantity: z.number().nonnegative().optional(), note: z.string().max(500).optional() }),
   z.object({ issueId: z.string().uuid(), resolution: z.literal("assigned"), sessionId: z.string().uuid(), stockBatchId: z.string().uuid() })
 ]);
 

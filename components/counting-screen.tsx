@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
-  CalendarDays,
   Check,
   ChevronRight,
   CloudOff,
@@ -27,9 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
-  getCountedBatchIds,
-  indexActiveCountQuantities,
-  indexUnsyncedCountQuantities
+  getCountedProductIds,
+  indexActiveProductCountQuantities,
+  indexUnsyncedProductCountQuantities
 } from "@/lib/counting";
 import { demoEntries, demoProducts, demoSessions } from "@/lib/demo-data";
 import {
@@ -131,32 +130,32 @@ export function CountingScreen() {
 
   const pending = entries.filter((entry) => entry.syncState === "pending" || entry.syncState === "failed");
   const activeSessionIdForCounts = activeSession?.id ?? "";
-  const serverCountsByBatch = useMemo(
-    () => indexActiveCountQuantities(serverEntries, activeSessionIdForCounts),
+  const serverCountsByProduct = useMemo(
+    () => indexActiveProductCountQuantities(serverEntries, activeSessionIdForCounts),
     [activeSessionIdForCounts, serverEntries]
   );
-  const localCountsByBatch = useMemo(
-    () => indexUnsyncedCountQuantities(entries, activeSessionIdForCounts),
+  const localCountsByProduct = useMemo(
+    () => indexUnsyncedProductCountQuantities(entries, activeSessionIdForCounts),
     [activeSessionIdForCounts, entries]
   );
   const selectedServerCount = selected
-    ? serverCountsByBatch.get(selectedBatch?.id ?? "") ?? 0
+    ? serverCountsByProduct.get(selected.id) ?? 0
     : 0;
   const selectedLocalCount = selected
-    ? localCountsByBatch.get(selectedBatch?.id ?? "") ?? 0
+    ? localCountsByProduct.get(selected.id) ?? 0
     : 0;
   const countedQty = selectedServerCount + selectedLocalCount;
-  const systemQty = selectedBatch?.systemQty ?? selected?.systemQty ?? 0;
-  const countedBatchIds = useMemo(
-    () => getCountedBatchIds(serverEntries, entries, activeSessionIdForCounts),
+  const systemQty = selected?.systemQty ?? 0;
+  const countedProductIds = useMemo(
+    () => getCountedProductIds(serverEntries, entries, activeSessionIdForCounts),
     [activeSessionIdForCounts, entries, serverEntries]
   );
   const sessionProducts = products.filter((product) => activeSession?.productIds.includes(product.id));
-  const incompleteProducts = sessionProducts.filter((product) => product.batches.some((batch) => !countedBatchIds.has(batch.id)));
+  const incompleteProducts = sessionProducts.filter((product) => !countedProductIds.has(product.id));
 
   function chooseProduct(product: Product) {
     setSelected(product);
-    setSelectedBatch(product.batches.length === 1 ? product.batches[0] : null);
+    setSelectedBatch(product.batches[0] ?? null);
     setQuery("");
     setQuantity(1);
     setNotice(null);
@@ -170,7 +169,7 @@ export function CountingScreen() {
   }
 
   async function saveCount() {
-    if (!activeSession || !selected || !selectedBatch || quantity <= 0) return;
+    if (!activeSession || !selected || !selectedBatch || quantity < 0) return;
     const now = new Date().toISOString();
     const entry: LocalCountEntry = {
       localEntryId: makeId(),
@@ -193,7 +192,7 @@ export function CountingScreen() {
     };
     await saveLocalEntry(entry);
     await refreshEntries();
-    setNotice({ tone: "green", text: `Added ${quantity} × ${selected.name} · ${selectedBatch.expiryDate ? `exp ${selectedBatch.expiryDate}` : "no expiry"}. Saved on this device.` });
+    setNotice({ tone: "green", text: `Added ${quantity} × ${selected.name}. Saved on this device.` });
     setQuantity(1);
     window.setTimeout(() => setNotice(null), 3500);
   }
@@ -245,7 +244,7 @@ export function CountingScreen() {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[.13em] text-[#7a847e]">Tonight&apos;s count</p>
-          {sessions.length > 1 ? <select value={activeSession?.id} onChange={(event) => { setActiveSessionId(event.target.value); setSelected(null); }} className="max-w-[250px] bg-transparent text-xl font-black tracking-tight outline-none">{sessions.map((session) => <option key={session.id} value={session.id}>{session.name}</option>)}</select> : <h1 className="text-xl font-black tracking-tight">{activeSession?.name ?? "No assigned session"}</h1>}
+          {sessions.length > 1 ? <select value={activeSession?.id} onChange={(event) => { setActiveSessionId(event.target.value); setSelected(null); setSelectedBatch(null); }} className="max-w-[250px] bg-transparent text-xl font-black tracking-tight outline-none">{sessions.map((session) => <option key={session.id} value={session.id}>{session.name}</option>)}</select> : <h1 className="text-xl font-black tracking-tight">{activeSession?.name ?? "No assigned session"}</h1>}
         </div>
         <Badge tone={online ? "green" : "amber"} className="gap-1.5">
           {online ? <Wifi size={12} /> : <WifiOff size={12} />}
@@ -321,30 +320,9 @@ export function CountingScreen() {
                 <p className="text-xs font-medium text-[#7a847e]">{selected.sku} · {selected.barcode}</p>
               </div>
 
-              <div className="border-b border-[#e8ece9] p-4">
-                <p className="mb-2 text-xs font-black uppercase tracking-[.08em] text-[#68726c]">
-                  {selected.batches.length > 1 ? "Choose the batch / expiry you are counting" : "Batch / expiry"}
-                </p>
-                <div className="grid gap-2">
-                  {selected.batches.map((batch) => {
-                    const active = selectedBatch?.id === batch.id;
-                    return (
-                      <button key={batch.id} onClick={() => setSelectedBatch(batch)} className={`flex items-center justify-between rounded-xl border p-3 text-left transition ${active ? "border-[#52a174] bg-[#e9f6ef] ring-2 ring-[#18794e]/10" : "border-[#dfe5e1] bg-white"}`}>
-                        <span>
-                          <span className="flex items-center gap-1.5 text-sm font-black"><CalendarDays size={15} /> {batch.expiryDate ? `Expires ${batch.expiryDate}` : "No expiry recorded"}</span>
-                          <span className="mt-1 block text-xs text-[#68726c]">{batch.batchNo || batch.inwardTranno || "Unlabelled GoFrugal batch"}</span>
-                        </span>
-                        <span className="text-right"><span className="block text-[10px] font-bold uppercase text-[#7a847e]">System</span><span className="tabular text-lg font-black">{formatNumber(batch.systemQty)}</span></span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {!selectedBatch && <p className="mt-2 text-xs font-bold text-[#b45309]">Select the expiry printed on the physical stock before entering quantity.</p>}
-              </div>
-
               <div className="grid grid-cols-3 border-b border-[#e8ece9]">
                 {[
-                  ["Batch system", systemQty],
+                  ["System total", systemQty],
                   ["Counted", countedQty],
                   ["Difference", countedQty - systemQty]
                 ].map(([label, value]) => (
@@ -366,14 +344,14 @@ export function CountingScreen() {
                   </label>
                 </div>
                 <div className="mb-3 flex h-16 items-center rounded-2xl border-2 border-[#dfe5e1]">
-                  <button onClick={() => setQuantity((value) => Math.max(1, value - 1))} className="grid h-full w-16 place-items-center text-[#18794e]" aria-label="Subtract one"><Minus /></button>
-                  <input value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))} type="number" min="1" inputMode="decimal" className="tabular h-full min-w-0 flex-1 border-x border-[#e4e8e5] text-center text-3xl font-black outline-none" />
+                  <button onClick={() => setQuantity((value) => Math.max(0, value - 1))} className="grid h-full w-16 place-items-center text-[#18794e]" aria-label="Subtract one"><Minus /></button>
+                  <input value={quantity} onChange={(event) => setQuantity(Math.max(0, Number(event.target.value) || 0))} type="number" min="0" inputMode="decimal" className="tabular h-full min-w-0 flex-1 border-x border-[#e4e8e5] text-center text-3xl font-black outline-none" />
                   <button onClick={() => setQuantity((value) => value + 1)} className="grid h-full w-16 place-items-center text-[#18794e]" aria-label="Add one"><Plus /></button>
                 </div>
                 <div className="mb-5 grid grid-cols-4 gap-2">
                   {presets.map((preset) => <button key={preset} onClick={() => setQuantity((value) => value + preset)} className="h-11 rounded-xl bg-[#eef2ef] text-sm font-black text-[#445049] active:bg-[#dce9e1]">+{preset}</button>)}
                 </div>
-                <Button size="lg" className="w-full" onClick={saveCount} disabled={!selectedBatch}><PackageCheck size={20} /> Save this batch on device</Button>
+                <Button size="lg" className="w-full" onClick={saveCount} disabled={!selectedBatch}><PackageCheck size={20} /> Save product count on device</Button>
                 <p className="mt-2 text-center text-[11px] text-[#7a847e]">Instant save · no internet required</p>
               </div>
             </Card>
@@ -383,21 +361,19 @@ export function CountingScreen() {
         <div className="animate-enter">
           <div className="mb-3">
             <h2 className="font-black">Still to count</h2>
-            <p className="text-xs text-[#7a847e]">A product stays here until every expiry batch in this session has an entry.</p>
+            <p className="text-xs text-[#7a847e]">A product stays here until its total physical quantity has an entry.</p>
           </div>
           {incompleteProducts.length === 0 ? (
             <Card className="py-12 text-center shadow-none"><Check className="mx-auto mb-3 text-[#18794e]" /><p className="font-bold">Every product has been counted</p></Card>
           ) : (
             <div className="space-y-3">
               {incompleteProducts.map((product) => {
-                const remaining = product.batches.filter((batch) => !countedBatchIds.has(batch.id));
-                const partial = remaining.length < product.batches.length;
                 return (
                   <button key={product.id} onClick={() => { chooseProduct(product); setTab("count"); }} className="w-full text-left">
                     <Card className="flex items-center gap-3 p-4 shadow-none transition hover:border-[#63a982]">
-                      <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${partial ? "bg-[#fff6df] text-[#b45309]" : "bg-[#eef1ef] text-[#68726c]"}`}><PackageCheck size={19} /></span>
-                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{product.name}</span><span className="mt-1 block text-xs text-[#7a847e]">{product.sku} · {remaining.length} of {product.batches.length} batches remaining</span></span>
-                      <Badge tone={partial ? "amber" : "neutral"}>{partial ? "Partial" : "Uncounted"}</Badge>
+                      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#eef1ef] text-[#68726c]"><PackageCheck size={19} /></span>
+                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{product.name}</span><span className="mt-1 block text-xs text-[#7a847e]">{product.sku}</span></span>
+                      <Badge>Uncounted</Badge>
                     </Card>
                   </button>
                 );
@@ -421,7 +397,7 @@ export function CountingScreen() {
                     <p className="tabular text-base font-black">+{formatNumber(entry.quantity)}</p>
                   </div>
                   <p className="mt-1 text-xs text-[#7a847e]">{entry.area} · {formatTime(entry.createdAt)}</p>
-                  <p className="mt-1 text-xs font-semibold text-[#526059]">{entry.expiryDate ? `Expiry ${entry.expiryDate}` : "No expiry"} · {entry.batchNo || entry.inwardTranno || "Unlabelled batch"}</p>
+                  <p className="mt-1 text-xs font-semibold text-[#526059]">Product total</p>
                   {entry.syncError && <p className="mt-2 text-xs font-semibold text-[#b42318]">{entry.syncError}</p>}
                 </div>
               </div>
@@ -429,7 +405,7 @@ export function CountingScreen() {
                 <div className="mt-3 flex justify-end gap-2 border-t border-[#eef1ef] pt-3">
                   <Button variant="ghost" size="sm" onClick={() => {
                     const next = window.prompt("Correct quantity", String(entry.quantity));
-                    if (next && Number(next) > 0) void updateLocalEntry(entry.localEntryId, { quantity: Number(next), syncState: "pending", syncError: undefined }).then(refreshEntries);
+                    if (next !== null && Number(next) >= 0) void updateLocalEntry(entry.localEntryId, { quantity: Number(next), syncState: "pending", syncError: undefined }).then(refreshEntries);
                   }}><Pencil size={14} /> Edit</Button>
                   <Button variant="ghost" size="sm" className="text-[#b42318]" onClick={() => void deleteLocalEntry(entry.localEntryId).then(refreshEntries)}><Trash2 size={14} /> Undo</Button>
                 </div>

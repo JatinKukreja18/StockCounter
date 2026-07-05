@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/supabase/server";
 
+export const maxDuration = 60;
+
 const batchSchema = z.object({
   batchKey: z.string().min(1),
   batchNo: z.string(),
@@ -93,7 +95,14 @@ export async function POST(request: Request) {
       p_products: parsed.data.products,
       p_assignee_ids: parsed.data.assigneeIds
     });
-    if (error) throw error;
+    if (error) {
+      return NextResponse.json({
+        error: error.message || "Session import failed",
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      }, { status: 500 });
+    }
     return NextResponse.json({ sessionId: data }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Import failed";
