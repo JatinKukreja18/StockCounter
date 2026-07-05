@@ -9,15 +9,18 @@ import { getAuthenticatedProfile } from "@/lib/supabase/server";
 
 export async function GET() {
   try {
-    const { supabase } = await getAuthenticatedProfile();
+    const { supabase, profile } = await getAuthenticatedProfile();
     const { data: sessionRows, error: sessionError } = await supabase
       .from("sessions")
-      .select("id,name,status,category,store,stock_import_id,created_at,closed_at,stock_imports(file_name),session_assignments(user_id)")
+      .select("id,name,status,category,store,stock_import_id,created_at,closed_at,stock_imports(file_name),session_assignments!inner(user_id)")
       .eq("status", "open")
+      .eq("session_assignments.user_id", profile.id)
       .order("created_at", { ascending: false });
     if (sessionError) throw sessionError;
     const sessionIds = (sessionRows ?? []).map((row) => row.id);
-    if (!sessionIds.length) return NextResponse.json({ sessions: [], products: [], entries: [] });
+    if (!sessionIds.length) {
+      return NextResponse.json({ userId: profile.id, sessions: [], products: [], entries: [] });
+    }
 
     const [{ data: mappings, error: mappingError }, { data: entries, error: entryError }] = await Promise.all([
       supabase
@@ -49,6 +52,7 @@ export async function GET() {
       };
     });
     return NextResponse.json({
+      userId: profile.id,
       sessions,
       products,
       entries: mapCountEntries((entries ?? []) as unknown as RawCountEntry[])

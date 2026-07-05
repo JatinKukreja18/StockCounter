@@ -44,6 +44,7 @@ import {
 } from "@/lib/local-db";
 import type { CountEntry, CountSession, LocalCountEntry, Product, StockBatch, SyncEntryResult } from "@/lib/types";
 import { isDemoMode } from "@/lib/runtime";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatNumber, formatTime, makeId } from "@/lib/utils";
 
 const presets = [1, 2, 5, 10];
@@ -68,6 +69,12 @@ export function CountingScreen() {
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? sessions[0];
   const isDemo = isDemoMode();
 
+  const getCacheOwnerId = useCallback(async () => {
+    if (isDemo) return "demo";
+    const { data } = await createSupabaseBrowserClient().auth.getSession();
+    return data.session?.user.id ?? null;
+  }, [isDemo]);
+
   const refreshEntries = useCallback(async () => setEntries(await getLocalEntries()), []);
   const refreshServerData = useCallback(async () => {
     if (isDemo) {
@@ -75,18 +82,18 @@ export function CountingScreen() {
       setProducts(demoProducts);
       setServerEntries(demoEntries);
       setActiveSessionId((value) => value || demoSessions[0].id);
-      await cacheProducts(demoProducts);
+      await cacheProducts(demoProducts, "demo");
       return;
     }
     const response = await fetch("/api/staff/bootstrap", { cache: "no-store" });
     if (!response.ok) throw new Error("Could not load assigned sessions.");
-    const data = await response.json() as { sessions: CountSession[]; products: Product[]; entries: CountEntry[] };
+    const data = await response.json() as { userId: string; sessions: CountSession[]; products: Product[]; entries: CountEntry[] };
     setSessions(data.sessions);
     setProducts(data.products);
     setServerEntries(data.entries);
     setActiveSessionId((value) => data.sessions.some((session) => session.id === value) ? value : data.sessions[0]?.id ?? "");
-    await cacheProducts(data.products);
-    await setMeta("assignedSessions", JSON.stringify(data.sessions));
+    await cacheProducts(data.products, data.userId);
+    await setMeta(`assignedSessions:${data.userId}`, JSON.stringify(data.sessions));
   }, [isDemo]);
 
   useEffect(() => {
@@ -94,12 +101,18 @@ export function CountingScreen() {
       try {
         await refreshServerData();
       } catch {
-        setProducts(await getCachedProducts());
-        const cachedSessions = await getMeta("assignedSessions");
+        const ownerId = await getCacheOwnerId();
+        const cachedSessions = ownerId ? await getMeta(`assignedSessions:${ownerId}`) : undefined;
         if (cachedSessions) {
+          setProducts(await getCachedProducts(ownerId!));
           const parsed = JSON.parse(cachedSessions) as CountSession[];
           setSessions(parsed);
           setActiveSessionId(parsed[0]?.id ?? "");
+        } else {
+          setSessions([]);
+          setProducts([]);
+          setActiveSessionId("");
+          setNotice({ tone: "red", text: "Could not load your assigned sessions. Check your connection and try again." });
         }
       }
       setLastSync((await getMeta("lastSync")) ?? null);
@@ -114,7 +127,7 @@ export function CountingScreen() {
       window.removeEventListener("online", setNetwork);
       window.removeEventListener("offline", setNetwork);
     };
-  }, [refreshEntries, refreshServerData]);
+  }, [getCacheOwnerId, refreshEntries, refreshServerData]);
 
   const matches = useMemo(() => {
     const value = query.trim().toLowerCase();

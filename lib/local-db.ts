@@ -42,19 +42,18 @@ function db() {
   return database;
 }
 
-export async function cacheProducts(products: Product[]) {
-  const transaction = (await db()).transaction("products", "readwrite");
-  await Promise.all(products.map((product) => transaction.store.put(product)));
-  await transaction.done;
+export async function cacheProducts(products: Product[], ownerId: string) {
+  await setMeta(`products:${ownerId}`, JSON.stringify(products));
 }
 
-export async function getCachedProducts() {
-  return (await db()).getAll("products");
+export async function getCachedProducts(ownerId: string) {
+  const cached = await getMeta(`products:${ownerId}`);
+  return cached ? JSON.parse(cached) as Product[] : [];
 }
 
-export async function findCachedProduct(query: string) {
+export async function findCachedProduct(query: string, ownerId: string) {
   const value = query.trim().toLowerCase();
-  const products = await getCachedProducts();
+  const products = await getCachedProducts(ownerId);
   return products.find(
     (product) =>
       product.barcode === value ||
