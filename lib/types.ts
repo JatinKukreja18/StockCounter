@@ -42,6 +42,7 @@ export interface CountSession {
   store: string;
   productIds: string[];
   assignees: string[];
+  assigneeIds?: string[];
   createdAt: string;
   closedAt?: string;
   completedProductCount?: number;

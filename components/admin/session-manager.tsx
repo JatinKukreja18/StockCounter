@@ -22,6 +22,9 @@ export function SessionManager() {
   const [staff, setStaff] = useState<Array<{ id: string; full_name: string; email: string; phone: string | null }>>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [assigningSession, setAssigningSession] = useState<CountSession | null>(null);
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
+  const [assignmentError, setAssignmentError] = useState("");
 
   async function loadRealData() {
     if (isDemo) return;
@@ -97,6 +100,48 @@ export function SessionManager() {
     }
   }
 
+  async function addPeople(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!assigningSession) return;
+    const form = new FormData(event.currentTarget);
+    const assigneeIds = form.getAll("assignees").map(String);
+    if (!assigneeIds.length) return setAssignmentError("Select at least one staff member.");
+
+    setAssignmentSaving(true);
+    setAssignmentError("");
+    try {
+      if (isDemo) {
+        const demoStaff = [{ id: "demo-staff", full_name: "Demo Staff" }];
+        const selectedNames = demoStaff
+          .filter((person) => assigneeIds.includes(person.id))
+          .map((person) => person.full_name);
+        setSessions((current) => current.map((session) =>
+          session.id === assigningSession.id
+            ? {
+                ...session,
+                assignees: [...session.assignees, ...selectedNames],
+                assigneeIds: [...(session.assigneeIds ?? []), ...assigneeIds]
+              }
+            : session
+        ));
+      } else {
+        const response = await fetch(`/api/admin/sessions/${assigningSession.id}/assignments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assigneeIds })
+        });
+        const data = await response.json() as { error?: string };
+        if (!response.ok) throw new Error(data.error || "Could not add people.");
+        await loadRealData();
+      }
+      setAssigningSession(null);
+    } catch (reason) {
+      setAssignmentError(reason instanceof Error ? reason.message : "Could not add people.");
+    } finally {
+      setAssignmentSaving(false);
+    }
+  }
+
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -131,9 +176,24 @@ export function SessionManager() {
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-[#edf1ee]"><div className="h-full rounded-full bg-[#2c9762]" style={{ width: `${percent}%` }} /></div>
               </div>
-              <div className="flex items-center justify-between border-t border-[#e8ece9] bg-[#fbfcfb] px-5 py-3">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#68726c]"><Users size={15} /> {session.assignees.join(", ")}</div>
-                <span className="text-xs font-bold text-[#18794e]">{isDemo ? demoEntries.filter((entry) => entry.sessionId === session.id).length : session.entryCount ?? 0} synced entries</span>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e8ece9] bg-[#fbfcfb] px-5 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-[#68726c]"><Users size={15} className="shrink-0" /> <span className="truncate">{session.assignees.join(", ") || "No staff assigned"}</span></div>
+                  <span className="mt-1 block text-xs font-bold text-[#18794e]">{isDemo ? demoEntries.filter((entry) => entry.sessionId === session.id).length : session.entryCount ?? 0} synced entries</span>
+                </div>
+                {session.status === "open" && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setAssigningSession(session);
+                      setAssignmentError("");
+                    }}
+                  >
+                    <Plus size={15} /> Add people
+                  </Button>
+                )}
               </div>
             </Card>
           );
@@ -167,6 +227,53 @@ export function SessionManager() {
                 <Button size="lg" className="w-full" type="submit" disabled={!parsed || saving || (!isDemo && !staff.length)}>{saving ? <LoaderCircle className="animate-spin" /> : null}{saving ? "Importing master…" : "Create and open session"}</Button>
               </form>
             )}
+          </Card>
+        </div>
+      )}
+
+      {assigningSession && (
+        <div className="fixed inset-0 z-[70] grid place-items-end bg-[#172019]/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-5">
+          <Card className="max-h-[90dvh] w-full max-w-md overflow-auto rounded-b-none p-6 sm:rounded-2xl">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-black">Add people</h2>
+                <p className="mt-1 text-sm text-[#68726c]">{assigningSession.name}</p>
+              </div>
+              <button type="button" onClick={() => setAssigningSession(null)} className="grid size-9 place-items-center rounded-full bg-[#eef1ef]" aria-label="Close">
+                <X size={17} />
+              </button>
+            </div>
+            {(() => {
+              const availableStaff = (isDemo
+                ? [{ id: "demo-staff", full_name: "Demo Staff", email: "staff@demo.local", phone: null }]
+                : staff
+              ).filter((person) => !(assigningSession.assigneeIds ?? []).includes(person.id));
+
+              return availableStaff.length ? (
+                <form onSubmit={addPeople} className="space-y-4">
+                  <fieldset>
+                    <legend className="mb-1.5 text-xs font-bold">Select additional staff</legend>
+                    <div className="max-h-60 space-y-1 overflow-auto rounded-xl border border-[#dfe5e1] p-2">
+                      {availableStaff.map((person) => (
+                        <label key={person.id} className="flex items-center gap-3 rounded-lg p-2 text-sm hover:bg-[#f4f7f5]">
+                          <input name="assignees" value={person.id} type="checkbox" />
+                          <span><b>{person.full_name}</b><span className="ml-2 text-xs text-[#7a847e]">{person.phone || person.email}</span></span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                  {assignmentError && <div className="flex gap-2 rounded-xl bg-[#fff0ee] p-3 text-sm font-semibold text-[#9e251b]"><AlertCircle size={17} />{assignmentError}</div>}
+                  <Button className="w-full" type="submit" disabled={assignmentSaving}>
+                    {assignmentSaving ? <LoaderCircle className="animate-spin" /> : <Plus size={16} />}
+                    {assignmentSaving ? "Adding…" : "Add selected people"}
+                  </Button>
+                </form>
+              ) : (
+                <div className="rounded-xl bg-[#eef2ef] p-4 text-sm text-[#56615b]">
+                  Everyone is already assigned to this session.
+                </div>
+              );
+            })()}
           </Card>
         </div>
       )}

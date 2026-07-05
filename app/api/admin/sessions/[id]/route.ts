@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import {
   mapCountEntries,
   mapSessionProducts,
@@ -13,7 +14,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     const { supabase } = await requireAdmin();
     const { data: session, error: sessionError } = await supabase
       .from("sessions")
-      .select("id,name,status,category,store,stock_import_id,created_at,closed_at,stock_imports(file_name),session_assignments(users(full_name))")
+      .select("id,name,status,category,store,stock_import_id,created_at,closed_at,stock_imports(file_name),session_assignments(user_id,users(full_name))")
       .eq("id", id).single();
     if (sessionError) throw sessionError;
     const [{ data: mappings, error: mapError }, { data: entries, error: entryError }] = await Promise.all([
@@ -30,10 +31,10 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     const source = session as unknown as {
       id: string; name: string; status: "draft" | "open" | "closed"; category: string | null; store: string; stock_import_id: string;
       created_at: string; closed_at: string | null; stock_imports: { file_name: string } | null;
-      session_assignments: Array<{ users: { full_name: string } | null }>;
+      session_assignments: Array<{ user_id: string | null; users: { full_name: string } | null }>;
     };
     return NextResponse.json({
-      session: { id: source.id, name: source.name, status: source.status, category: source.category ?? "All", store: source.store, stockImportId: source.stock_import_id, masterFileName: source.stock_imports?.file_name ?? "", productIds: products.map((product) => product.id), assignees: source.session_assignments.map((item) => item.users?.full_name).filter(Boolean), createdAt: source.created_at, closedAt: source.closed_at ?? undefined },
+      session: { id: source.id, name: source.name, status: source.status, category: source.category ?? "All", store: source.store, stockImportId: source.stock_import_id, masterFileName: source.stock_imports?.file_name ?? "", productIds: products.map((product) => product.id), assignees: source.session_assignments.map((item) => item.users?.full_name).filter(Boolean), assigneeIds: source.session_assignments.map((item) => item.user_id).filter(Boolean), createdAt: source.created_at, closedAt: source.closed_at ?? undefined },
       products,
       entries: mapCountEntries((entries ?? []) as unknown as RawCountEntry[])
     });
@@ -42,10 +43,27 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   }
 }
 
-export async function PATCH(_: Request, { params }: { params: Promise<{ id: string }> }) {
+const renameSchema = z.object({ name: z.string().trim().min(2).max(150) });
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const { supabase } = await requireAdmin();
+    const body = await request.text();
+    if (body) {
+      const parsed = renameSchema.safeParse(JSON.parse(body));
+      if (!parsed.success) {
+        return NextResponse.json({ error: "Session name must be between 2 and 150 characters." }, { status: 400 });
+      }
+      const { data, error } = await supabase
+        .from("sessions")
+        .update({ name: parsed.data.name })
+        .eq("id", id)
+        .select("name")
+        .single();
+      if (error) throw error;
+      return NextResponse.json({ ok: true, name: data.name });
+    }
     const { error } = await supabase.rpc("close_count_session", { p_session_id: id });
     if (error) throw error;
     return NextResponse.json({ ok: true });

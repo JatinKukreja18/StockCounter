@@ -71,6 +71,7 @@ export async function GET() {
         store: source.store,
         productIds: [...new Set(source.session_products.map((item) => item.product_id))],
         assignees: source.session_assignments.map((item) => item.users?.full_name).filter(Boolean),
+        assigneeIds: source.session_assignments.map((item) => item.user_id).filter(Boolean),
         createdAt: source.created_at,
         closedAt: source.closed_at ?? undefined,
         completedProductCount: (progress ?? []).filter((item) => item.session_id === source.id && item.count_status === "counted").length,

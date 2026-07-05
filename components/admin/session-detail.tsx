@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Circle, Lock, MoreHorizontal, Pencil, Trash2, Users } from "lucide-react";
+import { AlertCircle, CheckCircle2, Circle, LoaderCircle, Lock, MoreHorizontal, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import { ExportButton } from "@/components/admin/export-button";
+import { PageHeading } from "@/components/admin/page-heading";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,19 +15,39 @@ import { formatNumber, formatTime } from "@/lib/utils";
 
 export function SessionDetail({ session }: { session: CountSession }) {
   const isDemo = isDemoMode();
+  const demoStaff = [{ id: "demo-staff", full_name: "Demo Staff", email: "staff@demo.local", phone: null }];
   const [sessionData, setSessionData] = useState(session);
   const [closed, setClosed] = useState(session.status === "closed");
   const [products, setProducts] = useState<Product[]>(isDemo ? demoProducts.filter((product) => session.productIds.includes(product.id)) : []);
   const [entries, setEntries] = useState<CountEntry[]>(isDemo ? demoEntries.filter((entry) => entry.sessionId === session.id) : []);
+  const [staff, setStaff] = useState<Array<{ id: string; full_name: string; email: string; phone: string | null }>>(isDemo ? demoStaff : []);
+  const [showPeople, setShowPeople] = useState(false);
+  const [peopleSaving, setPeopleSaving] = useState(false);
+  const [peopleError, setPeopleError] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(session.name);
+  const [nameError, setNameError] = useState("");
+
+  async function refreshSession() {
+    const response = await fetch(`/api/admin/sessions/${session.id}`);
+    if (!response.ok) return;
+    const data = await response.json();
+    setSessionData(data.session);
+    setClosed(data.session.status === "closed");
+    setProducts(data.products);
+    setEntries(data.entries);
+  }
+
   useEffect(() => {
-    if (!isDemo) void fetch(`/api/admin/sessions/${session.id}`).then(async (response) => {
-      if (!response.ok) return;
-      const data = await response.json();
-      setSessionData(data.session);
-      setClosed(data.session.status === "closed");
-      setProducts(data.products);
-      setEntries(data.entries);
-    });
+    if (!isDemo) void Promise.all([
+      refreshSession(),
+      fetch("/api/admin/users").then(async (response) => {
+        if (!response.ok) return;
+        const data = await response.json();
+        setStaff(data.users.filter((user: { role: string }) => user.role === "staff"));
+      })
+    ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDemo, session.id]);
   const countsByProduct = useMemo(() => indexActiveProductCountQuantities(entries, session.id), [entries, session.id]);
   const [tab, setTab] = useState<"variance" | "history">("variance");
@@ -55,11 +76,116 @@ export function SessionDetail({ session }: { session: CountSession }) {
       if (refreshed.ok) setEntries((await refreshed.json()).entries);
     } else setEntries((items) => items.map((entry) => entry.id === entryId ? { ...entry, isVoided: true } : entry));
   }
+
+  async function addPeople(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const assigneeIds = new FormData(event.currentTarget).getAll("assignees").map(String);
+    if (!assigneeIds.length) return setPeopleError("Select at least one staff member.");
+    setPeopleSaving(true);
+    setPeopleError("");
+    try {
+      if (isDemo) {
+        const names = staff.filter((person) => assigneeIds.includes(person.id)).map((person) => person.full_name);
+        setSessionData((current) => ({
+          ...current,
+          assignees: [...current.assignees, ...names],
+          assigneeIds: [...(current.assigneeIds ?? []), ...assigneeIds]
+        }));
+      } else {
+        const response = await fetch(`/api/admin/sessions/${session.id}/assignments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assigneeIds })
+        });
+        const data = await response.json() as { error?: string };
+        if (!response.ok) throw new Error(data.error || "Could not add people.");
+        await refreshSession();
+      }
+      setShowPeople(false);
+    } catch (reason) {
+      setPeopleError(reason instanceof Error ? reason.message : "Could not add people.");
+    } finally {
+      setPeopleSaving(false);
+    }
+  }
+
+  async function saveName() {
+    const name = draftName.trim();
+    setEditingName(false);
+    if (!name || name === sessionData.name) {
+      setDraftName(sessionData.name);
+      return;
+    }
+
+    setNameError("");
+    if (isDemo) {
+      setSessionData((current) => ({ ...current, name }));
+      setDraftName(name);
+      return;
+    }
+
+    const response = await fetch(`/api/admin/sessions/${session.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+    const data = await response.json() as { error?: string; name?: string };
+    if (!response.ok) {
+      setDraftName(sessionData.name);
+      setNameError(data.error || "Could not rename the session.");
+      return;
+    }
+    const savedName = data.name ?? name;
+    setSessionData((current) => ({ ...current, name: savedName }));
+    setDraftName(savedName);
+  }
+
+  const availableStaff = staff.filter((person) => !(sessionData.assigneeIds ?? []).includes(person.id));
+
   return (
     <>
+      <PageHeading
+        eyebrow="Session review"
+        title={editingName ? (
+          <input
+            autoFocus
+            aria-label="Session name"
+            className="min-w-0 max-w-full rounded-lg border border-[#9fcab2] bg-white px-2 py-1 text-2xl font-black tracking-tight outline-none ring-2 ring-[#18794e]/15 sm:text-3xl"
+            value={draftName}
+            onChange={(event) => setDraftName(event.target.value)}
+            onBlur={() => void saveName()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+              if (event.key === "Escape") {
+                setDraftName(sessionData.name);
+                setEditingName(false);
+              }
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="rounded-md text-left hover:text-[#18794e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#18794e]/30"
+            title="Click to edit session name"
+            onClick={() => {
+              setDraftName(sessionData.name);
+              setNameError("");
+              setEditingName(true);
+            }}
+          >
+            {sessionData.name}
+          </button>
+        )}
+        description="Review the additive count total, investigate variances, and close only when the team has finished syncing."
+      />
+      {nameError && <div className="-mt-5 mb-5 flex gap-2 rounded-xl bg-[#fff0ee] p-3 text-sm font-semibold text-[#9e251b]"><AlertCircle size={17} />{nameError}</div>}
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div><div className="flex items-center gap-2"><Badge tone={closed ? "neutral" : "green"}>{closed ? "closed" : "open"}</Badge><span className="text-xs font-semibold text-[#68726c]"><Users className="mr-1 inline" size={14} />{sessionData.assignees.join(", ")}</span></div><p className="mt-2 text-xs text-[#7a847e]">Master: {sessionData.masterFileName}</p></div>
-        <div className="flex gap-2"><ExportButton sessionId={session.id} products={products} entries={entries} /><Button variant="danger" disabled={closed} onClick={() => void closeSession()}><Lock size={16} /> {closed ? "Session closed" : "Close session"}</Button></div>
+        <div className="flex flex-wrap gap-2">
+          {!closed && <Button variant="secondary" onClick={() => { setShowPeople(true); setPeopleError(""); }}><Plus size={16} /> Add people</Button>}
+          <ExportButton sessionId={session.id} products={products} entries={entries} />
+          <Button variant="danger" disabled={closed} onClick={() => void closeSession()}><Lock size={16} /> {closed ? "Session closed" : "Close session"}</Button>
+        </div>
       </div>
       <div className="mb-4 grid grid-cols-2 rounded-xl bg-[#e9ecea] p-1 sm:w-80">
         <button onClick={() => setTab("variance")} className={`h-9 rounded-lg text-xs font-bold ${tab === "variance" ? "bg-white shadow-sm" : "text-[#68726c]"}`}>Variance</button>
@@ -95,6 +221,39 @@ export function SessionDetail({ session }: { session: CountSession }) {
           </div>
         )}
       </Card>
+
+      {showPeople && (
+        <div className="fixed inset-0 z-[70] grid place-items-end bg-[#172019]/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-5">
+          <Card className="max-h-[90dvh] w-full max-w-md overflow-auto rounded-b-none p-6 sm:rounded-2xl">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div><h2 className="text-xl font-black">Add people</h2><p className="mt-1 text-sm text-[#68726c]">{sessionData.name}</p></div>
+              <button type="button" onClick={() => setShowPeople(false)} className="grid size-9 place-items-center rounded-full bg-[#eef1ef]" aria-label="Close"><X size={17} /></button>
+            </div>
+            {availableStaff.length ? (
+              <form onSubmit={addPeople} className="space-y-4">
+                <fieldset>
+                  <legend className="mb-1.5 text-xs font-bold">Select additional staff</legend>
+                  <div className="max-h-60 space-y-1 overflow-auto rounded-xl border border-[#dfe5e1] p-2">
+                    {availableStaff.map((person) => (
+                      <label key={person.id} className="flex items-center gap-3 rounded-lg p-2 text-sm hover:bg-[#f4f7f5]">
+                        <input name="assignees" value={person.id} type="checkbox" />
+                        <span><b>{person.full_name}</b><span className="ml-2 text-xs text-[#7a847e]">{person.phone || person.email}</span></span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                {peopleError && <div className="flex gap-2 rounded-xl bg-[#fff0ee] p-3 text-sm font-semibold text-[#9e251b]"><AlertCircle size={17} />{peopleError}</div>}
+                <Button className="w-full" type="submit" disabled={peopleSaving}>
+                  {peopleSaving ? <LoaderCircle className="animate-spin" /> : <Plus size={16} />}
+                  {peopleSaving ? "Adding…" : "Add selected people"}
+                </Button>
+              </form>
+            ) : (
+              <div className="rounded-xl bg-[#eef2ef] p-4 text-sm text-[#56615b]">Everyone is already assigned to this session.</div>
+            )}
+          </Card>
+        </div>
+      )}
     </>
   );
 }
