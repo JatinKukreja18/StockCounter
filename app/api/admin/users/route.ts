@@ -1,22 +1,48 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { normalizeIndianPhone } from "@/lib/phone-auth";
+import { normalizeIndianPhone, phoneLoginEmail } from "@/lib/phone-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/supabase/server";
 
-const createSchema = z.object({
-  mobile: z.string().min(10).max(20),
+const commonCreateFields = {
   fullName: z.string().min(2).max(100),
-  pin: z.string().regex(/^\d{6}$/, "PIN must contain exactly 6 digits"),
   role: z.enum(["admin", "staff"]).default("staff")
-});
+};
 
-const updateSchema = z.object({
+const createSchema = z.discriminatedUnion("authMethod", [
+  z.object({
+    ...commonCreateFields,
+    authMethod: z.literal("phone"),
+    mobile: z.string().min(10).max(20),
+    pin: z.string().regex(/^\d{6}$/, "PIN must contain exactly 6 digits")
+  }),
+  z.object({
+    ...commonCreateFields,
+    authMethod: z.literal("email"),
+    email: z.string().email().max(255),
+    password: z.string().min(8, "Password must contain at least 8 characters").max(72)
+  })
+]);
+
+const commonUpdateFields = {
   id: z.string().uuid(),
-  mobile: z.string().min(10).max(20),
-  fullName: z.string().min(2).max(100),
-  pin: z.union([z.literal(""), z.string().regex(/^\d{6}$/, "PIN must contain exactly 6 digits")]).optional()
-});
+  fullName: z.string().min(2).max(100)
+};
+
+const updateSchema = z.discriminatedUnion("authMethod", [
+  z.object({
+    ...commonUpdateFields,
+    authMethod: z.literal("phone"),
+    mobile: z.string().min(10).max(20),
+    pin: z.union([z.literal(""), z.string().regex(/^\d{6}$/, "PIN must contain exactly 6 digits")]).optional()
+  }),
+  z.object({
+    ...commonUpdateFields,
+    authMethod: z.literal("email"),
+    email: z.string().email().max(255),
+    password: z.union([z.literal(""), z.string().min(8, "Password must contain at least 8 characters").max(72)]).optional()
+  })
+]);
 
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) return error.message;
@@ -41,20 +67,44 @@ export async function POST(request: Request) {
     await requireAdmin();
     const parsed = createSchema.safeParse(await request.json());
     if (!parsed.success) return NextResponse.json({ error: "Invalid user", details: parsed.error.flatten() }, { status: 400 });
-    const phone = normalizeIndianPhone(parsed.data.mobile);
     const admin = createSupabaseAdminClient();
-    const existing = await admin.from("users").select("id").eq("phone", phone).maybeSingle();
+    const credential = parsed.data.authMethod === "phone"
+      ? (() => {
+          const phone = normalizeIndianPhone(parsed.data.mobile);
+          return {
+          column: "phone" as const,
+          identifier: phone,
+          auth: { email: phoneLoginEmail(phone), password: parsed.data.pin, email_confirm: true },
+          profile: { phone }
+          };
+        })()
+      : {
+          column: "email" as const,
+          identifier: parsed.data.email.trim().toLowerCase(),
+          auth: {
+            email: parsed.data.email.trim().toLowerCase(),
+            password: parsed.data.password,
+            email_confirm: true
+          },
+          profile: { email: parsed.data.email.trim().toLowerCase() }
+        };
+    const existing = await admin
+      .from("users")
+      .select("id")
+      .eq(credential.column, credential.identifier)
+      .maybeSingle();
     if (existing.error) throw existing.error;
     if (existing.data) return NextResponse.json({ existing: true });
     const { data, error } = await admin.auth.admin.createUser({
-      phone,
-      password: parsed.data.pin,
-      phone_confirm: true,
+      ...credential.auth,
       user_metadata: { full_name: parsed.data.fullName }
     });
     if (error) throw error;
     if (data.user) {
-      const update = await admin.from("users").update({ phone, role: parsed.data.role }).eq("id", data.user.id);
+      const update = await admin.from("users").update({
+        ...credential.profile,
+        role: parsed.data.role
+      }).eq("id", data.user.id);
       if (update.error) throw update.error;
     }
     return NextResponse.json({ user: data.user, created: true }, { status: 201 });
@@ -71,7 +121,32 @@ export async function PATCH(request: Request) {
     if (!parsed.success) return NextResponse.json({ error: "Invalid staff update", details: parsed.error.flatten() }, { status: 400 });
 
     const admin = createSupabaseAdminClient();
-    const phone = normalizeIndianPhone(parsed.data.mobile);
+    const credential = parsed.data.authMethod === "phone"
+      ? (() => {
+          const phone = normalizeIndianPhone(parsed.data.mobile);
+          return {
+          methodLabel: "mobile number",
+          column: "phone" as const,
+          identifier: phone,
+          auth: {
+            email: phoneLoginEmail(phone),
+            email_confirm: true,
+            ...(parsed.data.pin ? { password: parsed.data.pin } : {})
+          },
+          profile: { phone }
+          };
+        })()
+      : {
+          methodLabel: "email address",
+          column: "email" as const,
+          identifier: parsed.data.email.trim().toLowerCase(),
+          auth: {
+            email: parsed.data.email.trim().toLowerCase(),
+            email_confirm: true,
+            ...(parsed.data.password ? { password: parsed.data.password } : {})
+          },
+          profile: { email: parsed.data.email.trim().toLowerCase() }
+        };
     const { data: target, error: targetError } = await admin
       .from("users")
       .select("id,role")
@@ -83,23 +158,28 @@ export async function PATCH(request: Request) {
     const { data: duplicate, error: duplicateError } = await admin
       .from("users")
       .select("id")
-      .eq("phone", phone)
+      .eq(credential.column, credential.identifier)
       .neq("id", parsed.data.id)
       .maybeSingle();
     if (duplicateError) throw duplicateError;
-    if (duplicate) return NextResponse.json({ error: "That mobile number belongs to another account." }, { status: 409 });
+    if (duplicate) {
+      return NextResponse.json({
+        error: `That ${credential.methodLabel} belongs to another account.`
+      }, { status: 409 });
+    }
 
     const authUpdate = await admin.auth.admin.updateUserById(parsed.data.id, {
-      phone,
-      phone_confirm: true,
+      ...credential.auth,
       user_metadata: { full_name: parsed.data.fullName },
-      ...(parsed.data.pin ? { password: parsed.data.pin } : {})
     });
     if (authUpdate.error) throw authUpdate.error;
 
     const profileUpdate = await admin
       .from("users")
-      .update({ phone, full_name: parsed.data.fullName })
+      .update({
+        ...credential.profile,
+        full_name: parsed.data.fullName
+      })
       .eq("id", parsed.data.id);
     if (profileUpdate.error) throw profileUpdate.error;
 

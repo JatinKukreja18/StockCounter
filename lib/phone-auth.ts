@@ -8,9 +8,14 @@ export function normalizeIndianPhone(value: string) {
   return `+91${nationalNumber}`;
 }
 
+export function phoneLoginEmail(value: string) {
+  const phone = normalizeIndianPhone(value);
+  return `${phone.slice(1)}@phone.stockcounter.invalid`;
+}
+
 export function passwordCredentials(identifier: string, password: string) {
   const trimmed = identifier.trim();
   return trimmed.includes("@")
     ? { email: trimmed.toLowerCase(), password }
-    : { phone: normalizeIndianPhone(trimmed), password };
+    : { email: phoneLoginEmail(trimmed), password };
 }
