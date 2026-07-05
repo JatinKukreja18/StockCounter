@@ -7,11 +7,13 @@ create type public.issue_status as enum ('open', 'accepted', 'corrected', 'voide
 create table public.users (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null,
+  phone text,
   full_name text not null,
   role public.user_role not null default 'staff',
   group_name text,
   created_at timestamptz not null default now()
 );
+create unique index users_phone_unique on public.users(phone) where phone is not null;
 
 create table public.stock_imports (
   id uuid primary key default gen_random_uuid(),
@@ -140,11 +142,17 @@ create or replace function public.handle_new_auth_user()
 returns trigger language plpgsql security definer set search_path = public
 as $$
 begin
-  insert into public.users (id, email, full_name, role)
+  insert into public.users (id, email, phone, full_name, role)
   values (
     new.id,
     coalesce(new.email, ''),
-    coalesce(nullif(new.raw_user_meta_data->>'full_name', ''), split_part(coalesce(new.email, 'Staff'), '@', 1)),
+    nullif(new.phone, ''),
+    coalesce(
+      nullif(new.raw_user_meta_data->>'full_name', ''),
+      nullif(split_part(coalesce(new.email, ''), '@', 1), ''),
+      nullif(new.phone, ''),
+      'Staff'
+    ),
     'staff'
   )
   on conflict (id) do nothing;

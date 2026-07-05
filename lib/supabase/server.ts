@@ -32,11 +32,11 @@ export async function getAuthenticatedProfile() {
   const { supabase, user } = await getAuthenticatedUser();
   const { data: profile, error } = await supabase
     .from("users")
-    .select("id,email,full_name,role,group_name")
+    .select("id,email,phone,full_name,role,group_name")
     .eq("id", user.id)
     .single();
   if (error || !profile) throw new Error("User profile is not configured.");
-  return { supabase, user, profile: profile as { id: string; email: string; full_name: string; role: "admin" | "staff"; group_name: string | null } };
+  return { supabase, user, profile: profile as { id: string; email: string; phone: string | null; full_name: string; role: "admin" | "staff"; group_name: string | null } };
 }
 
 export async function requireAdmin() {

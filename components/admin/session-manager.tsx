@@ -19,7 +19,7 @@ export function SessionManager() {
   const [created, setCreated] = useState(false);
   const [masterFile, setMasterFile] = useState("");
   const [parsed, setParsed] = useState<GoFrugalImportResult | null>(null);
-  const [staff, setStaff] = useState<Array<{ id: string; full_name: string; email: string }>>([]);
+  const [staff, setStaff] = useState<Array<{ id: string; full_name: string; email: string; phone: string | null }>>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -157,10 +157,10 @@ export function SessionManager() {
             ) : (
               <form onSubmit={createSession} className="space-y-4">
                 <label className="block"><span className="mb-1.5 block text-xs font-bold">GoFrugal stock master</span><input required type="file" accept=".xls,.xlsx" onChange={(event) => event.target.files?.[0] && void readMaster(event.target.files[0])} className="block w-full rounded-xl border border-[#dfe5e1] bg-white p-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[#e9f6ef] file:px-3 file:py-2 file:font-bold file:text-[#12673f]" /><span className="mt-1.5 block text-[11px] text-[#7a847e]">The file is immutable after the session opens.</span></label>
-                {parsed && <div className="rounded-xl bg-[#e9f6ef] p-4 text-sm text-[#12673f]"><b>{parsed.products.length} products · {parsed.metadata.batchRows} batches</b><br />{parsed.metadata.store} · {parsed.metadata.category} · Stock {parsed.metadata.grandTotal?.toLocaleString("en-IN")}</div>}
+                {parsed && <div className="rounded-xl bg-[#e9f6ef] p-4 text-sm text-[#12673f]"><b>{parsed.products.length} product totals · {parsed.metadata.batchRows} source stock lines</b><br />{parsed.metadata.store} · {parsed.metadata.category} · Stock {parsed.metadata.grandTotal?.toLocaleString("en-IN")}</div>}
                 <label className="block"><span className="mb-1.5 block text-xs font-bold">Session name</span><input required name="name" defaultValue={parsed ? `${parsed.metadata.category} · ${parsed.metadata.store}` : ""} key={parsed?.metadata.category} className="h-11 w-full rounded-xl border border-[#dfe5e1] bg-white px-3 outline-none" /></label>
                 <fieldset><legend className="mb-1.5 text-xs font-bold">Assign staff</legend><div className="max-h-36 space-y-1 overflow-auto rounded-xl border border-[#dfe5e1] p-2">
-                  {(isDemo ? [{ id: "demo-staff", full_name: "Demo Staff", email: "staff@demo.local" }] : staff).map((user) => <label key={user.id} className="flex items-center gap-3 rounded-lg p-2 text-sm hover:bg-[#f4f7f5]"><input name="assignees" value={user.id} type="checkbox" /><span><b>{user.full_name}</b><span className="ml-2 text-xs text-[#7a847e]">{user.email}</span></span></label>)}
+                  {(isDemo ? [{ id: "demo-staff", full_name: "Demo Staff", email: "staff@demo.local", phone: null }] : staff).map((user) => <label key={user.id} className="flex items-center gap-3 rounded-lg p-2 text-sm hover:bg-[#f4f7f5]"><input name="assignees" value={user.id} type="checkbox" /><span><b>{user.full_name}</b><span className="ml-2 text-xs text-[#7a847e]">{user.phone || user.email}</span></span></label>)}
                   {!isDemo && !staff.length && <p className="p-2 text-xs text-[#b45309]">Create staff accounts under Users first.</p>}
                 </div></fieldset>
                 {error && <div className="flex gap-2 rounded-xl bg-[#fff0ee] p-3 text-sm font-semibold text-[#9e251b]"><AlertCircle size={17} />{error}</div>}

@@ -9,7 +9,7 @@ export default function LoginPage() {
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 grid size-12 place-items-center rounded-2xl bg-[#18794e] text-xl font-black text-white">S</div>
           <h1 className="text-xl font-black">Sekai Stock Count</h1>
-          <p className="mt-1 text-sm text-[#68726c]">Sign in with your staff account</p>
+          <p className="mt-1 text-sm text-[#68726c]">Sign in with your mobile number and PIN</p>
         </div>
         <Suspense><LoginForm /></Suspense>
       </Card>
