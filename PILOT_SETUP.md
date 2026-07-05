@@ -2,13 +2,19 @@
 
 The local app is configured for real Supabase mode. Complete these steps in order.
 
-## 1. Apply the backend migration
+## 1. Apply the backend migrations
 
-In Supabase Dashboard, open **SQL Editor → New query**, paste the full contents of:
+In Supabase Dashboard, open **SQL Editor → New query** and run these files in order:
 
 `supabase/migrations/0002_pilot_backend.sql`
 
-Run it once. It adds the user-profile trigger, transactional Excel import, session closing, issue assignment/resolution, entry correction, audit logging, and tighter assigned-session RLS.
+`supabase/migrations/0003_product_level_counting.sql`
+
+`supabase/migrations/0004_mobile_pin_auth.sql`
+
+The later migrations enable explicit zero counts and mobile/PIN staff accounts.
+
+In **Authentication → Providers → Phone**, enable the Phone provider. Staff accounts are created and phone-confirmed by the admin, so this workflow does not send OTP messages.
 
 ## 2. Create the first administrator
 
@@ -49,18 +55,13 @@ http://localhost:3000/**
 
 ## 4. Create five staff users
 
-Sign in to the deployed app as administrator and open **Users**. Create one account per tester with a temporary password. Share each password privately.
+Sign in to the deployed app as administrator and open **Users**. Create one account per tester using their 10-digit Indian mobile number and a unique 6-digit PIN. Share each PIN privately.
 
 ## 5. First real Excel upload
 
 Open **Sessions → Create session** and select the GoFrugal Current Stock Detail file.
 
-For the supplied example, verify before creating:
-
-- 470 products
-- 602 expiry/batch rows
-- Current stock total 4,304.76
-- 18 missing-EAN warnings
+Verify that the product total and current-stock total match the GoFrugal report. Source batch/lot rows are combined into one countable total per product.
 
 Select the five staff users and create the session. The Excel snapshot becomes immutable for that session.
 
@@ -68,8 +69,8 @@ Select the five staff users and create the session. The Excel snapshot becomes i
 
 1. Sign in as one staff user on an iPhone.
 2. Confirm only the assigned session is visible.
-3. Count one product with two expiry batches.
-4. Confirm both entries save locally.
+3. Count one product by entering its total physical quantity.
+4. Count one missing product as zero and confirm both entries save locally.
 5. Sync manually.
 6. Confirm the admin variance and entry history update.
 7. Confirm an untouched product remains under **Uncounted**.
