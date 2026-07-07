@@ -1,0 +1,7 @@
+{
+  "singleQuote": false,
+  "jsxSingleQuote": false,
+  "bracketSameLine": false,
+  "semi": true,
+  "trailingComma": "none"
+}
