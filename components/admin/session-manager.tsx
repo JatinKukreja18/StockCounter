@@ -10,37 +10,21 @@ import { Card } from "@/components/ui/card";
 import { ErrorAlert } from "@/components/ui/error-alert";
 import { SheetModal } from "@/components/ui/sheet-modal";
 import { useAdminSessions } from "@/hooks/use-admin-sessions";
-import type { AdminUserRow } from "@/lib/api-types";
-import { demoEntries, demoProducts, demoSessions } from "@/lib/demo-data";
 import {
   parseStockWorkbook,
   type GoFrugalImportResult
 } from "@/lib/gofrugal-import";
-import { isDemoMode } from "@/lib/runtime";
 import type { CountSession } from "@/lib/types";
 
-const demoStaff: AdminUserRow[] = [
-  {
-    id: "demo-staff",
-    full_name: "Demo Staff",
-    email: "staff@demo.local",
-    phone: null,
-    role: "staff"
-  }
-];
-
 export function SessionManager() {
-  const isDemo = isDemoMode();
   const {
-    sessions: realSessions,
-    staff: realStaff,
-    loading: realLoading,
+    sessions,
+    staff,
+    loading,
     error: loadError,
     createSession: createSessionApi,
     addPeople: addPeopleApi
-  } = useAdminSessions({ autoLoad: !isDemo });
-  const [demoSessionRows, setDemoSessionRows] =
-    useState<CountSession[]>(demoSessions);
+  } = useAdminSessions();
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState(false);
   const [masterFile, setMasterFile] = useState("");
@@ -52,9 +36,6 @@ export function SessionManager() {
   );
   const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [assignmentError, setAssignmentError] = useState("");
-  const sessions = isDemo ? demoSessionRows : realSessions;
-  const staff = isDemo ? demoStaff : realStaff;
-  const loading = isDemo ? false : realLoading;
 
   useEffect(() => {
     if (loadError) setError(loadError);
@@ -98,28 +79,12 @@ export function SessionManager() {
       return setError("Assign at least one staff member.");
     }
     try {
-      if (isDemo) {
-        const next: CountSession = {
-          id: crypto.randomUUID(),
-          stockImportId: crypto.randomUUID(),
-          masterFileName: masterFile,
-          name: String(form.get("name")),
-          category: parsed.metadata.category,
-          store: parsed.metadata.store,
-          status: "open",
-          productIds: parsed.products.map((product) => product.sku),
-          assignees: ["Demo Staff"],
-          createdAt: new Date().toISOString()
-        };
-        setDemoSessionRows((value) => [next, ...value]);
-      } else {
-        await createSessionApi({
-          name: String(form.get("name") ?? ""),
-          fileName: masterFile,
-          products: parsed.products,
-          assigneeIds
-        });
-      }
+      await createSessionApi({
+        name: String(form.get("name") ?? ""),
+        fileName: masterFile,
+        products: parsed.products,
+        assigneeIds
+      });
       setCreated(true);
     } catch (reason) {
       setError(
@@ -138,25 +103,7 @@ export function SessionManager() {
     setAssignmentSaving(true);
     setAssignmentError("");
     try {
-      if (isDemo) {
-        const demoStaff = [{ id: "demo-staff", full_name: "Demo Staff" }];
-        const selectedNames = demoStaff
-          .filter((person) => assigneeIds.includes(person.id))
-          .map((person) => person.full_name);
-        setDemoSessionRows((current) =>
-          current.map((session) =>
-            session.id === assigningSession.id
-              ? {
-                  ...session,
-                  assignees: [...session.assignees, ...selectedNames],
-                  assigneeIds: [...(session.assigneeIds ?? []), ...assigneeIds]
-                }
-              : session
-          )
-        );
-      } else {
-        await addPeopleApi(assigningSession.id, assigneeIds);
-      }
+      await addPeopleApi(assigningSession.id, assigneeIds);
       setAssigningSession(null);
     } catch (reason) {
       setAssignmentError(
@@ -193,20 +140,7 @@ export function SessionManager() {
           </Card>
         )}
         {sessions.map((session) => {
-          const counted = isDemo
-            ? demoProducts
-                .filter((product) => session.productIds.includes(product.id))
-                .filter((product) =>
-                  product.batches.every((batch) =>
-                    demoEntries.some(
-                      (entry) =>
-                        entry.sessionId === session.id &&
-                        entry.stockBatchId === batch.id &&
-                        !entry.isVoided
-                    )
-                  )
-                ).length
-            : (session.completedProductCount ?? 0);
+          const counted = session.completedProductCount ?? 0;
           const percent = session.productIds.length
             ? Math.round((counted / session.productIds.length) * 100)
             : 0;
@@ -262,12 +196,7 @@ export function SessionManager() {
                     </span>
                   </div>
                   <span className="mt-1 block text-xs font-bold text-[#18794e]">
-                    {isDemo
-                      ? demoEntries.filter(
-                          (entry) => entry.sessionId === session.id
-                        ).length
-                      : (session.entryCount ?? 0)}{" "}
-                    synced entries
+                    {session.entryCount ?? 0} synced entries
                   </span>
                 </div>
                 {session.status === "open" && (
@@ -382,7 +311,7 @@ export function SessionManager() {
                       </span>
                     </label>
                   ))}
-                  {!isDemo && !staff.length && (
+                  {!staff.length && (
                     <p className="p-2 text-xs text-[#b45309]">
                       Create staff accounts under Users first.
                     </p>
@@ -394,7 +323,7 @@ export function SessionManager() {
                 size="lg"
                 className="w-full"
                 type="submit"
-                disabled={!parsed || saving || (!isDemo && !staff.length)}
+                disabled={!parsed || saving || !staff.length}
               >
                 {saving ? <LoaderCircle className="animate-spin" /> : null}
                 {saving ? "Importing master…" : "Create and open session"}

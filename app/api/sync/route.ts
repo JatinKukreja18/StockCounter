@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { demoProducts, demoSessions } from "@/lib/demo-data";
-import { isDemoMode } from "@/lib/runtime";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import type { IssueCode, SyncEntryResult } from "@/lib/types";
 
@@ -65,57 +63,6 @@ function issue(
   return { localEntryId, status: "issue", issue: { code, message, severity } };
 }
 
-function demoSync(entries: z.infer<typeof entrySchema>[]) {
-  return entries.map<SyncEntryResult>((entry) => {
-    const product = demoProducts.find(
-      (item) => item.id === entry.productId || item.barcode === entry.barcode
-    );
-    if (!product)
-      return issue(
-        entry.localEntryId,
-        "barcode_not_found",
-        `Barcode ${entry.barcode} was not found in the active stock import.`
-      );
-    if (!product.batches.some((batch) => batch.id === entry.stockBatchId)) {
-      return issue(
-        entry.localEntryId,
-        "no_open_session",
-        `${product.name} batch ${entry.batchNo || entry.inwardTranno || entry.stockBatchId} is not in the cached stock import.`
-      );
-    }
-    const sessions = demoSessions.filter(
-      (session) =>
-        session.id === entry.sessionId &&
-        session.status === "open" &&
-        session.productIds.includes(product.id)
-    );
-    if (!sessions.length)
-      return issue(
-        entry.localEntryId,
-        "no_open_session",
-        `${product.name} does not belong to an open count session.`
-      );
-    if (sessions.length > 1)
-      return issue(
-        entry.localEntryId,
-        "multiple_open_sessions",
-        `${product.name} matches ${sessions.length} open sessions.`
-      );
-    if (entry.quantity >= 100)
-      return issue(
-        entry.localEntryId,
-        "unusually_high_quantity",
-        `Quantity ${entry.quantity} is unusually high. Entry is queued for admin review.`,
-        "warning"
-      );
-    return {
-      localEntryId: entry.localEntryId,
-      status: "synced",
-      serverEntryId: crypto.randomUUID()
-    };
-  });
-}
-
 export async function POST(request: Request) {
   const parsed = payloadSchema.safeParse(
     await request.json().catch(() => null)
@@ -125,13 +72,6 @@ export async function POST(request: Request) {
       { error: "Invalid sync batch", details: parsed.error.flatten() },
       { status: 400 }
     );
-  }
-
-  if (isDemoMode()) {
-    return NextResponse.json({
-      results: demoSync(parsed.data.entries),
-      syncedAt: new Date().toISOString()
-    });
   }
 
   try {

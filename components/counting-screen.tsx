@@ -32,7 +32,6 @@ import {
   indexActiveProductCountQuantities,
   indexUnsyncedProductCountQuantities
 } from "@/lib/counting";
-import { demoEntries, demoProducts, demoSessions } from "@/lib/demo-data";
 import {
   cacheProducts,
   deleteLocalEntry,
@@ -51,7 +50,6 @@ import type {
   Product,
   StockBatch
 } from "@/lib/types";
-import { isDemoMode } from "@/lib/runtime";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatNumber, formatTime, makeId } from "@/lib/utils";
 
@@ -88,28 +86,18 @@ export function CountingScreen() {
   const noticeTimerRef = useRef<number | null>(null);
   const activeSession =
     sessions.find((session) => session.id === activeSessionId) ?? sessions[0];
-  const isDemo = isDemoMode();
   const { loadBootstrap, syncEntries } = useStaffBootstrap();
 
   const getCacheOwnerId = useCallback(async () => {
-    if (isDemo) return "demo";
     const { data } = await createSupabaseBrowserClient().auth.getSession();
     return data.session?.user.id ?? null;
-  }, [isDemo]);
+  }, []);
 
   const refreshEntries = useCallback(
     async () => setEntries(await getLocalEntries()),
     []
   );
   const refreshServerData = useCallback(async () => {
-    if (isDemo) {
-      setSessions(demoSessions);
-      setProducts(demoProducts);
-      setServerEntries(demoEntries);
-      setActiveSessionId((value) => value || demoSessions[0].id);
-      await cacheProducts(demoProducts, "demo");
-      return;
-    }
     const data = await loadBootstrap();
     setSessions(data.sessions);
     setProducts(data.products);
@@ -124,7 +112,7 @@ export function CountingScreen() {
       `assignedSessions:${data.userId}`,
       JSON.stringify(data.sessions)
     );
-  }, [isDemo, loadBootstrap]);
+  }, [loadBootstrap]);
 
   useEffect(() => {
     async function hydrate() {

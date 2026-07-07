@@ -2,18 +2,17 @@
 
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { demoEntries, demoProducts } from "@/lib/demo-data";
 import { indexActiveProductCountQuantities } from "@/lib/counting";
 import type { CountEntry, Product } from "@/lib/types";
 
 export function ExportButton({
-  sessionId = "s1",
-  products = demoProducts,
-  entries = demoEntries
+  sessionId,
+  products,
+  entries
 }: {
-  sessionId?: string;
-  products?: Product[];
-  entries?: CountEntry[];
+  sessionId: string;
+  products: Product[];
+  entries: CountEntry[];
 }) {
   async function exportXlsx() {
     const XLSX = await import("xlsx");

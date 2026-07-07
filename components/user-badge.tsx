@@ -4,7 +4,6 @@ import Link from "next/link";
 import { LayoutDashboard, LogOut, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMe } from "@/hooks/use-me";
-import { isDemoMode } from "@/lib/runtime";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function UserBadge() {
@@ -13,9 +12,7 @@ export function UserBadge() {
   const name = profile?.fullName ?? "Staff";
   const role = profile?.role ?? "staff";
   async function logout() {
-    if (!isDemoMode()) {
-      await createSupabaseBrowserClient().auth.signOut();
-    }
+    await createSupabaseBrowserClient().auth.signOut();
     router.replace("/login");
     router.refresh();
   }

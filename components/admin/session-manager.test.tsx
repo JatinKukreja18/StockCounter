@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import { testSession, testStaff } from "@/components/test-data";
 import { SessionManager } from "./session-manager";
 
-vi.mock("@/lib/runtime", () => ({ isDemoMode: () => false }));
 vi.mock("@/hooks/use-admin-sessions", () => ({
   useAdminSessions: vi.fn()
 }));

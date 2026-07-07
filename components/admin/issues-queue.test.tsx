@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import { barcodeIssue, testIssue } from "@/components/test-data";
 import { IssuesQueue } from "./issues-queue";
 
-vi.mock("@/lib/runtime", () => ({ isDemoMode: () => false }));
 vi.mock("@/hooks/use-admin-issues", () => ({
   useAdminIssues: vi.fn()
 }));
@@ -17,7 +16,6 @@ describe("IssuesQueue", () => {
     const resolveIssue = vi.fn().mockResolvedValue(undefined);
     mockedUseAdminIssues.mockReturnValue({
       issues: [testIssue],
-      setIssues: vi.fn(),
       loading: false,
       refresh: vi.fn(),
       resolveIssue,
@@ -45,7 +43,6 @@ describe("IssuesQueue", () => {
     vi.spyOn(window, "prompt").mockReturnValue("Pocari");
     mockedUseAdminIssues.mockReturnValue({
       issues: [barcodeIssue],
-      setIssues: vi.fn(),
       loading: false,
       refresh: vi.fn(),
       resolveIssue,

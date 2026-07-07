@@ -9,12 +9,11 @@ import type {
 } from "@/lib/api-types";
 import type { SyncIssue } from "@/lib/types";
 
-export function useAdminIssues(isDemo: boolean, demoIssues: SyncIssue[]) {
-  const [issues, setIssues] = useState<SyncIssue[]>(isDemo ? demoIssues : []);
-  const [loading, setLoading] = useState(!isDemo);
+export function useAdminIssues() {
+  const [issues, setIssues] = useState<SyncIssue[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    if (isDemo) return;
     setLoading(true);
     try {
       const data = await apiJson<AdminIssuesResponse>("/api/admin/issues", {
@@ -24,31 +23,26 @@ export function useAdminIssues(isDemo: boolean, demoIssues: SyncIssue[]) {
     } finally {
       setLoading(false);
     }
-  }, [isDemo]);
+  }, []);
 
   useEffect(() => {
     void refresh().catch(() => undefined);
   }, [refresh]);
 
-  const resolveIssue = useCallback(
-    async (payload: IssueResolution) => {
-      if (!isDemo) {
-        await apiJson<Record<string, unknown>>("/api/admin/issues", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-      }
-      const nextStatus =
-        payload.resolution === "assigned" ? "accepted" : payload.resolution;
-      setIssues((items) =>
-        items.map((item) =>
-          item.id === payload.issueId ? { ...item, status: nextStatus } : item
-        )
-      );
-    },
-    [isDemo]
-  );
+  const resolveIssue = useCallback(async (payload: IssueResolution) => {
+    await apiJson<Record<string, unknown>>("/api/admin/issues", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const nextStatus =
+      payload.resolution === "assigned" ? "accepted" : payload.resolution;
+    setIssues((items) =>
+      items.map((item) =>
+        item.id === payload.issueId ? { ...item, status: nextStatus } : item
+      )
+    );
+  }, []);
 
   const searchOptions = useCallback(async (query: string) => {
     const data = await apiJson<IssueOptionsResponse>(
@@ -58,5 +52,5 @@ export function useAdminIssues(isDemo: boolean, demoIssues: SyncIssue[]) {
     return data.options ?? [];
   }, []);
 
-  return { issues, setIssues, loading, refresh, resolveIssue, searchOptions };
+  return { issues, loading, refresh, resolveIssue, searchOptions };
 }

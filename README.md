@@ -10,9 +10,8 @@ npm install
 npm run dev
 ```
 
-For local development only, set `NEXT_PUBLIC_DEMO_MODE=true` to use the included
-demonstration data without Supabase. Production builds always require
-authentication even if that variable is accidentally enabled.
+Local development uses the same Supabase-backed authentication and data flow as
+production.
 
 ## Supabase setup
 
@@ -20,7 +19,7 @@ authentication even if that variable is accidentally enabled.
 2. Run `supabase/migrations/0001_stock_count.sql`, `0002_pilot_backend.sql`, `0003_product_level_counting.sql`, and `0004_mobile_pin_auth.sql` in order.
 3. Fill in `.env.local`.
 4. Create Auth users, then add matching rows to `public.users`.
-5. Set `NEXT_PUBLIC_DEMO_MODE=false`.
+5. Start the app and sign in with a Supabase-backed account.
 
 The Supabase secret key is reserved for server-side import/administration code and must never use the `NEXT_PUBLIC_` prefix. New Supabase projects should use publishable and secret keys; legacy anon/service-role keys remain supported by the client helpers during migration.
 

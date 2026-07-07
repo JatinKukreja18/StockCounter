@@ -1,17 +1,7 @@
 import { NextResponse } from "next/server";
-import { isDemoMode } from "@/lib/runtime";
 import { getAuthenticatedProfile } from "@/lib/supabase/server";
 
 export async function GET() {
-  if (isDemoMode()) {
-    return NextResponse.json({
-      id: "demo",
-      email: "demo@sekai.local",
-      phone: null,
-      fullName: "Demo Admin",
-      role: "admin"
-    });
-  }
   try {
     const { profile } = await getAuthenticatedProfile();
     return NextResponse.json({

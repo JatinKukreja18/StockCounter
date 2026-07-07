@@ -14,15 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAdminIssues } from "@/hooks/use-admin-issues";
-import { demoIssues } from "@/lib/demo-data";
-import { isDemoMode } from "@/lib/runtime";
 import type { SyncIssue } from "@/lib/types";
 import { formatTime } from "@/lib/utils";
 
 export function IssuesQueue() {
-  const isDemo = isDemoMode();
-  const { issues, setIssues, loading, resolveIssue, searchOptions } =
-    useAdminIssues(isDemo, demoIssues);
+  const { issues, loading, resolveIssue, searchOptions } = useAdminIssues();
   const [query, setQuery] = useState("");
   const open = issues.filter(
     (issue) =>
@@ -47,12 +43,6 @@ export function IssuesQueue() {
       "Search the correct product by SKU, barcode, or name"
     );
     if (!query) return;
-    if (isDemo)
-      return setIssues((items) =>
-        items.map((item) =>
-          item.id === id ? { ...item, status: "accepted" } : item
-        )
-      );
     const options = await searchOptions(query);
     if (!options.length)
       return window.alert("No matching batch in an open session.");

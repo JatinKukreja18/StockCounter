@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   CheckCircle2,
   Circle,
@@ -20,37 +20,21 @@ import { Card } from "@/components/ui/card";
 import { ErrorAlert } from "@/components/ui/error-alert";
 import { useAdminSessionDetail } from "@/hooks/use-admin-session-detail";
 import { indexActiveProductCountQuantities } from "@/lib/counting";
-import { demoEntries, demoProducts } from "@/lib/demo-data";
-import { isDemoMode } from "@/lib/runtime";
 import type { CountSession } from "@/lib/types";
 import { formatNumber, formatTime } from "@/lib/utils";
 
-const demoStaff = [
-  {
-    id: "demo-staff",
-    full_name: "Demo Staff",
-    email: "staff@demo.local",
-    phone: null,
-    role: "staff" as const
-  }
-];
-
 export function SessionDetail({ session }: { session: CountSession }) {
-  const isDemo = isDemoMode();
   const {
     sessionData,
     setSessionData,
     products,
-    setProducts,
     entries,
-    setEntries,
     staff,
-    setStaff,
     closeSession: closeSessionApi,
     changeEntry: changeEntryApi,
     addPeople: addPeopleApi,
     renameSession
-  } = useAdminSessionDetail(session, isDemo);
+  } = useAdminSessionDetail(session);
   const closed = sessionData.status === "closed";
   const [showPeople, setShowPeople] = useState(false);
   const [peopleSaving, setPeopleSaving] = useState(false);
@@ -58,22 +42,6 @@ export function SessionDetail({ session }: { session: CountSession }) {
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState(session.name);
   const [nameError, setNameError] = useState("");
-
-  useEffect(() => {
-    if (!isDemo) return;
-    setProducts(
-      demoProducts.filter((product) => session.productIds.includes(product.id))
-    );
-    setEntries(demoEntries.filter((entry) => entry.sessionId === session.id));
-    setStaff(demoStaff);
-  }, [
-    isDemo,
-    session.id,
-    session.productIds,
-    setEntries,
-    setProducts,
-    setStaff
-  ]);
 
   const countsByProduct = useMemo(
     () => indexActiveProductCountQuantities(entries, session.id),
@@ -87,9 +55,7 @@ export function SessionDetail({ session }: { session: CountSession }) {
       )
     )
       return;
-    if (!isDemo) {
-      await closeSessionApi();
-    }
+    await closeSessionApi();
     setSessionData((current) => ({
       ...current,
       status: "closed",
@@ -108,14 +74,7 @@ export function SessionDetail({ session }: { session: CountSession }) {
       )
     )
       return;
-    if (!isDemo) {
-      await changeEntryApi(entryId, action, quantity);
-    } else
-      setEntries((items) =>
-        items.map((entry) =>
-          entry.id === entryId ? { ...entry, isVoided: true } : entry
-        )
-      );
+    await changeEntryApi(entryId, action, quantity);
   }
 
   async function addPeople(assigneeIds: string[]) {
@@ -124,18 +83,7 @@ export function SessionDetail({ session }: { session: CountSession }) {
     setPeopleSaving(true);
     setPeopleError("");
     try {
-      if (isDemo) {
-        const names = staff
-          .filter((person) => assigneeIds.includes(person.id))
-          .map((person) => person.full_name);
-        setSessionData((current) => ({
-          ...current,
-          assignees: [...current.assignees, ...names],
-          assigneeIds: [...(current.assigneeIds ?? []), ...assigneeIds]
-        }));
-      } else {
-        await addPeopleApi(assigneeIds);
-      }
+      await addPeopleApi(assigneeIds);
       setShowPeople(false);
     } catch (reason) {
       setPeopleError(
@@ -155,12 +103,6 @@ export function SessionDetail({ session }: { session: CountSession }) {
     }
 
     setNameError("");
-    if (isDemo) {
-      setSessionData((current) => ({ ...current, name }));
-      setDraftName(name);
-      return;
-    }
-
     try {
       const savedName = await renameSession(name);
       setDraftName(savedName);

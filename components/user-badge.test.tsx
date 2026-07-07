@@ -13,7 +13,6 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/hooks/use-me", () => ({
   useMe: vi.fn()
 }));
-vi.mock("@/lib/runtime", () => ({ isDemoMode: () => false }));
 vi.mock("@/lib/supabase/client", () => ({
   createSupabaseBrowserClient: () => ({ auth: { signOut } })
 }));
@@ -33,8 +32,7 @@ describe("UserBadge", () => {
       },
       loading: false,
       error: null,
-      refresh: vi.fn(),
-      isDemo: false
+      refresh: vi.fn()
     });
 
     render(<UserBadge />);

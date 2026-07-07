@@ -18,7 +18,6 @@ const mocks = vi.hoisted(() => ({
 }));
 let localEntries: (typeof testLocalEntry)[] = [];
 
-vi.mock("@/lib/runtime", () => ({ isDemoMode: () => false }));
 vi.mock("@/components/barcode-scanner", () => ({
   BarcodeScanner: ({ open }: { open: boolean }) =>
     open ? <div>Scanner open</div> : null

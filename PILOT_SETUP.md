@@ -46,7 +46,6 @@ Configure these Production environment variables:
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SECRET_KEY
-NEXT_PUBLIC_DEMO_MODE=false
 ```
 
 Deploy `main`. In Supabase **Authentication → URL Configuration**, set the Vercel production URL as Site URL and add:

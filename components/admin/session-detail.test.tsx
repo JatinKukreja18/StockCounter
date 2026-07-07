@@ -10,7 +10,6 @@ import {
 } from "@/components/test-data";
 import { SessionDetail } from "./session-detail";
 
-vi.mock("@/lib/runtime", () => ({ isDemoMode: () => false }));
 vi.mock("@/components/admin/export-button", () => ({
   ExportButton: () => <button type="button">Export XLSX</button>
 }));

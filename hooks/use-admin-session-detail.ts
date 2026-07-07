@@ -9,16 +9,15 @@ import type {
 } from "@/lib/api-types";
 import type { CountEntry, CountSession, Product } from "@/lib/types";
 
-export function useAdminSessionDetail(session: CountSession, isDemo: boolean) {
+export function useAdminSessionDetail(session: CountSession) {
   const [sessionData, setSessionData] = useState(session);
   const [products, setProducts] = useState<Product[]>([]);
   const [entries, setEntries] = useState<CountEntry[]>([]);
   const [staff, setStaff] = useState<AdminUserRow[]>([]);
-  const [loading, setLoading] = useState(!isDemo);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const refreshSession = useCallback(async () => {
-    if (isDemo) return;
     const data = await apiJson<SessionDetailData>(
       `/api/admin/sessions/${session.id}`,
       { cache: "no-store" }
@@ -26,10 +25,9 @@ export function useAdminSessionDetail(session: CountSession, isDemo: boolean) {
     setSessionData(data.session);
     setProducts(data.products);
     setEntries(data.entries);
-  }, [isDemo, session.id]);
+  }, [session.id]);
 
   const refresh = useCallback(async () => {
-    if (isDemo) return;
     setLoading(true);
     setError("");
     try {
@@ -48,7 +46,7 @@ export function useAdminSessionDetail(session: CountSession, isDemo: boolean) {
     } finally {
       setLoading(false);
     }
-  }, [isDemo, session.id]);
+  }, [session.id]);
 
   useEffect(() => {
     void refresh();
