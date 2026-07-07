@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, LoaderCircle, PackageSearch, Plus, Users } from "lucide-react";
 import { PageHeading } from "@/components/admin/page-heading";
@@ -8,28 +7,14 @@ import { StatCard } from "@/components/admin/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useAdminDashboard } from "@/hooks/use-admin-dashboard";
 import { formatNumber, formatTime } from "@/lib/utils";
 
-type DashboardData = {
-  stats: { completedProducts: number; totalProducts: number; overallPercent: number; openSessions: number; staffUsers: number; openIssues: number };
-  sessions: Array<{ id: string; name: string; completedProducts: number; totalProducts: number; percent: number; assignees: string[] }>;
-  recent: Array<{ id: string; quantity: number; area: string | null; syncedAt: string; productName: string; userName: string }>;
-};
-
 export function AdminDashboard() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    void fetch("/api/admin/dashboard", { cache: "no-store" }).then(async (response) => {
-      const body = await response.json();
-      if (!response.ok) setError(body.error || "Could not load dashboard.");
-      else setData(body);
-    }).catch(() => setError("Could not load dashboard."));
-  }, []);
+  const { data, loading, error } = useAdminDashboard();
 
   if (error) return <Card className="p-6 text-sm font-semibold text-[#b42318]">{error}</Card>;
-  if (!data) return <div className="grid min-h-[55dvh] place-items-center"><LoaderCircle className="animate-spin text-[#18794e]" size={30} /></div>;
+  if (loading || !data) return <div className="grid min-h-[55dvh] place-items-center"><LoaderCircle className="animate-spin text-[#18794e]" size={30} /></div>;
 
   return (
     <>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AlertTriangle, Check, Link2, Pencil, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useAdminIssues } from "@/hooks/use-admin-issues";
 import { demoIssues } from "@/lib/demo-data";
 import { isDemoMode } from "@/lib/runtime";
 import type { SyncIssue } from "@/lib/types";
@@ -12,16 +13,10 @@ import { formatTime } from "@/lib/utils";
 
 export function IssuesQueue() {
   const isDemo = isDemoMode();
-  const [issues, setIssues] = useState<SyncIssue[]>(isDemo ? demoIssues : []);
-  const [loading, setLoading] = useState(!isDemo);
+  const { issues, setIssues, loading, resolveIssue, searchOptions } = useAdminIssues(isDemo, demoIssues);
   const [query, setQuery] = useState("");
   const open = issues.filter((issue) => issue.status === "open" && `${issue.code} ${issue.message} ${issue.localEntryId}`.toLowerCase().includes(query.toLowerCase()));
-  useEffect(() => {
-    if (!isDemo) void fetch("/api/admin/issues").then(async (response) => {
-      if (response.ok) setIssues((await response.json()).issues);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, [isDemo]);
+
   async function resolve(id: string, status: SyncIssue["status"]) {
     if (status === "open") return;
     let quantity: number | undefined;
@@ -30,21 +25,13 @@ export function IssuesQueue() {
       if (value === null || Number(value) < 0) return;
       quantity = Number(value);
     }
-    if (!isDemo) {
-      const response = await fetch("/api/admin/issues", {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ issueId: id, resolution: status, quantity })
-      });
-      if (!response.ok) return;
-    }
-    setIssues((items) => items.map((item) => item.id === id ? { ...item, status } : item));
+    await resolveIssue({ issueId: id, resolution: status, quantity });
   }
   async function assign(id: string) {
     const query = window.prompt("Search the correct product by SKU, barcode, or name");
     if (!query) return;
     if (isDemo) return setIssues((items) => items.map((item) => item.id === id ? { ...item, status: "accepted" } : item));
-    const response = await fetch(`/api/admin/issues?options=${encodeURIComponent(query)}`);
-    const options = response.ok ? (await response.json()).options as Array<{ sessionId: string; stockBatchId: string; label: string }> : [];
+    const options = await searchOptions(query);
     if (!options.length) return window.alert("No matching batch in an open session.");
     let selected = options[0];
     if (options.length > 1) {
@@ -53,11 +40,7 @@ export function IssuesQueue() {
       if (!Number.isInteger(index) || !options[index]) return;
       selected = options[index];
     }
-    const update = await fetch("/api/admin/issues", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ issueId: id, resolution: "assigned", sessionId: selected.sessionId, stockBatchId: selected.stockBatchId })
-    });
-    if (update.ok) setIssues((items) => items.map((item) => item.id === id ? { ...item, status: "accepted" } : item));
+    await resolveIssue({ issueId: id, resolution: "assigned", sessionId: selected.sessionId, stockBatchId: selected.stockBatchId });
   }
   return (
     <div className="space-y-4">

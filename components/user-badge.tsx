@@ -1,25 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LayoutDashboard, LogOut, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useMe } from "@/hooks/use-me";
 import { isDemoMode } from "@/lib/runtime";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export function UserBadge() {
   const router = useRouter();
-  const [name, setName] = useState("Staff");
-  const [role, setRole] = useState<"admin" | "staff">("staff");
-  useEffect(() => {
-    void fetch("/api/me", { cache: "no-store" }).then(async (response) => {
-      if (response.ok) {
-        const profile = await response.json();
-        setName(profile.fullName);
-        setRole(profile.role);
-      }
-    });
-  }, []);
+  const { profile } = useMe();
+  const name = profile?.fullName ?? "Staff";
+  const role = profile?.role ?? "staff";
   async function logout() {
     if (!isDemoMode()) {
       await createSupabaseBrowserClient().auth.signOut();
