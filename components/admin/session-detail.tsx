@@ -1,26 +1,40 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, Circle, LoaderCircle, Lock, MoreHorizontal, Pencil, Plus, Trash2, Users, X } from "lucide-react";
+import { CheckCircle2, Circle, Lock, MoreHorizontal, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { ExportButton } from "@/components/admin/export-button";
 import { PageHeading } from "@/components/admin/page-heading";
+import { StaffAssignmentModal } from "@/components/admin/staff-assignment-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ErrorAlert } from "@/components/ui/error-alert";
+import { useAdminSessionDetail } from "@/hooks/use-admin-session-detail";
 import { indexActiveProductCountQuantities } from "@/lib/counting";
 import { demoEntries, demoProducts } from "@/lib/demo-data";
 import { isDemoMode } from "@/lib/runtime";
-import type { CountEntry, CountSession, Product } from "@/lib/types";
+import type { CountSession } from "@/lib/types";
 import { formatNumber, formatTime } from "@/lib/utils";
+
+const demoStaff = [{ id: "demo-staff", full_name: "Demo Staff", email: "staff@demo.local", phone: null, role: "staff" as const }];
 
 export function SessionDetail({ session }: { session: CountSession }) {
   const isDemo = isDemoMode();
-  const demoStaff = [{ id: "demo-staff", full_name: "Demo Staff", email: "staff@demo.local", phone: null }];
-  const [sessionData, setSessionData] = useState(session);
-  const [closed, setClosed] = useState(session.status === "closed");
-  const [products, setProducts] = useState<Product[]>(isDemo ? demoProducts.filter((product) => session.productIds.includes(product.id)) : []);
-  const [entries, setEntries] = useState<CountEntry[]>(isDemo ? demoEntries.filter((entry) => entry.sessionId === session.id) : []);
-  const [staff, setStaff] = useState<Array<{ id: string; full_name: string; email: string; phone: string | null }>>(isDemo ? demoStaff : []);
+  const {
+    sessionData,
+    setSessionData,
+    products,
+    setProducts,
+    entries,
+    setEntries,
+    staff,
+    setStaff,
+    closeSession: closeSessionApi,
+    changeEntry: changeEntryApi,
+    addPeople: addPeopleApi,
+    renameSession
+  } = useAdminSessionDetail(session, isDemo);
+  const closed = sessionData.status === "closed";
   const [showPeople, setShowPeople] = useState(false);
   const [peopleSaving, setPeopleSaving] = useState(false);
   const [peopleError, setPeopleError] = useState("");
@@ -28,36 +42,21 @@ export function SessionDetail({ session }: { session: CountSession }) {
   const [draftName, setDraftName] = useState(session.name);
   const [nameError, setNameError] = useState("");
 
-  async function refreshSession() {
-    const response = await fetch(`/api/admin/sessions/${session.id}`);
-    if (!response.ok) return;
-    const data = await response.json();
-    setSessionData(data.session);
-    setClosed(data.session.status === "closed");
-    setProducts(data.products);
-    setEntries(data.entries);
-  }
-
   useEffect(() => {
-    if (!isDemo) void Promise.all([
-      refreshSession(),
-      fetch("/api/admin/users").then(async (response) => {
-        if (!response.ok) return;
-        const data = await response.json();
-        setStaff(data.users.filter((user: { role: string }) => user.role === "staff"));
-      })
-    ]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDemo, session.id]);
+    if (!isDemo) return;
+    setProducts(demoProducts.filter((product) => session.productIds.includes(product.id)));
+    setEntries(demoEntries.filter((entry) => entry.sessionId === session.id));
+    setStaff(demoStaff);
+  }, [isDemo, session.id, session.productIds, setEntries, setProducts, setStaff]);
+
   const countsByProduct = useMemo(() => indexActiveProductCountQuantities(entries, session.id), [entries, session.id]);
   const [tab, setTab] = useState<"variance" | "history">("variance");
   async function closeSession() {
     if (!window.confirm("Close this session? Staff will no longer be able to sync entries into it.")) return;
     if (!isDemo) {
-      const response = await fetch(`/api/admin/sessions/${session.id}`, { method: "PATCH" });
-      if (!response.ok) return;
+      await closeSessionApi();
     }
-    setClosed(true);
+    setSessionData((current) => ({ ...current, status: "closed", closedAt: new Date().toISOString() }));
   }
   async function changeEntry(entryId: string, action: "void" | "correct") {
     let quantity: number | undefined;
@@ -67,19 +66,11 @@ export function SessionDetail({ session }: { session: CountSession }) {
       quantity = Number(value);
     } else if (!window.confirm("Void this entry? Its quantity will be removed from the count.")) return;
     if (!isDemo) {
-      const response = await fetch(`/api/admin/sessions/${session.id}/entries`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ entryId, action, quantity })
-      });
-      if (!response.ok) return;
-      const refreshed = await fetch(`/api/admin/sessions/${session.id}`);
-      if (refreshed.ok) setEntries((await refreshed.json()).entries);
+      await changeEntryApi(entryId, action, quantity);
     } else setEntries((items) => items.map((entry) => entry.id === entryId ? { ...entry, isVoided: true } : entry));
   }
 
-  async function addPeople(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const assigneeIds = new FormData(event.currentTarget).getAll("assignees").map(String);
+  async function addPeople(assigneeIds: string[]) {
     if (!assigneeIds.length) return setPeopleError("Select at least one staff member.");
     setPeopleSaving(true);
     setPeopleError("");
@@ -92,14 +83,7 @@ export function SessionDetail({ session }: { session: CountSession }) {
           assigneeIds: [...(current.assigneeIds ?? []), ...assigneeIds]
         }));
       } else {
-        const response = await fetch(`/api/admin/sessions/${session.id}/assignments`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ assigneeIds })
-        });
-        const data = await response.json() as { error?: string };
-        if (!response.ok) throw new Error(data.error || "Could not add people.");
-        await refreshSession();
+        await addPeopleApi(assigneeIds);
       }
       setShowPeople(false);
     } catch (reason) {
@@ -124,23 +108,14 @@ export function SessionDetail({ session }: { session: CountSession }) {
       return;
     }
 
-    const response = await fetch(`/api/admin/sessions/${session.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name })
-    });
-    const data = await response.json() as { error?: string; name?: string };
-    if (!response.ok) {
+    try {
+      const savedName = await renameSession(name);
+      setDraftName(savedName);
+    } catch (reason) {
       setDraftName(sessionData.name);
-      setNameError(data.error || "Could not rename the session.");
-      return;
+      setNameError(reason instanceof Error ? reason.message : "Could not rename the session.");
     }
-    const savedName = data.name ?? name;
-    setSessionData((current) => ({ ...current, name: savedName }));
-    setDraftName(savedName);
   }
-
-  const availableStaff = staff.filter((person) => !(sessionData.assigneeIds ?? []).includes(person.id));
 
   return (
     <>
@@ -178,7 +153,7 @@ export function SessionDetail({ session }: { session: CountSession }) {
         )}
         description="Review the additive count total, investigate variances, and close only when the team has finished syncing."
       />
-      {nameError && <div className="-mt-5 mb-5 flex gap-2 rounded-xl bg-[#fff0ee] p-3 text-sm font-semibold text-[#9e251b]"><AlertCircle size={17} />{nameError}</div>}
+      <ErrorAlert message={nameError} className="-mt-5 mb-5" />
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div><div className="flex items-center gap-2"><Badge tone={closed ? "neutral" : "green"}>{closed ? "closed" : "open"}</Badge><span className="text-xs font-semibold text-[#68726c]"><Users className="mr-1 inline" size={14} />{sessionData.assignees.join(", ")}</span></div><p className="mt-2 text-xs text-[#7a847e]">Master: {sessionData.masterFileName}</p></div>
         <div className="flex flex-wrap gap-2">
@@ -222,38 +197,16 @@ export function SessionDetail({ session }: { session: CountSession }) {
         )}
       </Card>
 
-      {showPeople && (
-        <div className="fixed inset-0 z-[70] grid place-items-end bg-[#172019]/35 p-0 backdrop-blur-sm sm:place-items-center sm:p-5">
-          <Card className="max-h-[90dvh] w-full max-w-md overflow-auto rounded-b-none p-6 sm:rounded-2xl">
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div><h2 className="text-xl font-black">Add people</h2><p className="mt-1 text-sm text-[#68726c]">{sessionData.name}</p></div>
-              <button type="button" onClick={() => setShowPeople(false)} className="grid size-9 place-items-center rounded-full bg-[#eef1ef]" aria-label="Close"><X size={17} /></button>
-            </div>
-            {availableStaff.length ? (
-              <form onSubmit={addPeople} className="space-y-4">
-                <fieldset>
-                  <legend className="mb-1.5 text-xs font-bold">Select additional staff</legend>
-                  <div className="max-h-60 space-y-1 overflow-auto rounded-xl border border-[#dfe5e1] p-2">
-                    {availableStaff.map((person) => (
-                      <label key={person.id} className="flex items-center gap-3 rounded-lg p-2 text-sm hover:bg-[#f4f7f5]">
-                        <input name="assignees" value={person.id} type="checkbox" />
-                        <span><b>{person.full_name}</b><span className="ml-2 text-xs text-[#7a847e]">{person.phone || person.email}</span></span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-                {peopleError && <div className="flex gap-2 rounded-xl bg-[#fff0ee] p-3 text-sm font-semibold text-[#9e251b]"><AlertCircle size={17} />{peopleError}</div>}
-                <Button className="w-full" type="submit" disabled={peopleSaving}>
-                  {peopleSaving ? <LoaderCircle className="animate-spin" /> : <Plus size={16} />}
-                  {peopleSaving ? "Adding…" : "Add selected people"}
-                </Button>
-              </form>
-            ) : (
-              <div className="rounded-xl bg-[#eef2ef] p-4 text-sm text-[#56615b]">Everyone is already assigned to this session.</div>
-            )}
-          </Card>
-        </div>
-      )}
+      <StaffAssignmentModal
+        open={showPeople}
+        sessionName={sessionData.name}
+        staff={staff}
+        assignedIds={sessionData.assigneeIds ?? []}
+        saving={peopleSaving}
+        error={peopleError}
+        onClose={() => setShowPeople(false)}
+        onSubmit={(assigneeIds) => void addPeople(assigneeIds)}
+      />
     </>
   );
 }

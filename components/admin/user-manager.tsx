@@ -1,41 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Check, LoaderCircle, Pencil, Plus, UserRound, X } from 'lucide-react';
+import { AuthMethodToggle, type AuthMethod } from '@/components/auth/auth-method-toggle';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-
-type UserRow = { id: string; email: string; phone: string | null; full_name: string; role: 'admin' | 'staff' };
-type AuthMethod = 'email' | 'phone';
-
-function responseBody(text: string): { users?: UserRow[]; existing?: boolean; error?: string } {
-  if (!text) return {};
-  try {
-    return JSON.parse(text) as { users?: UserRow[]; existing?: boolean; error?: string };
-  } catch {
-    return { error: text };
-  }
-}
+import { useAdminUsers } from '@/hooks/use-admin-users';
+import type { AdminUserRow } from '@/lib/api-types';
 
 export function UserManager() {
-  const [users, setUsers] = useState<UserRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { users, loading, error, saveUser } = useAdminUsers();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const [editing, setEditing] = useState<UserRow | null>(null);
+  const [editing, setEditing] = useState<AdminUserRow | null>(null);
   const [authMethod, setAuthMethod] = useState<AuthMethod>('phone');
-
-  async function load() {
-    const response = await fetch('/api/admin/users');
-    const data = responseBody(await response.text());
-    if (response.ok) setUsers(data.users ?? []);
-    else setMessage(data.error || `Could not load users (${response.status}).`);
-    setLoading(false);
-  }
-  useEffect(() => {
-    void load();
-  }, []);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,21 +27,11 @@ export function UserManager() {
       : { email: form.get('email'), password: form.get('password') };
 
     try {
-      const response = await fetch('/api/admin/users', {
-        method: editing ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          editing
-            ? { id: editing.id, authMethod, fullName: form.get('fullName'), ...credential }
-            : { authMethod, fullName: form.get('fullName'), role: 'staff', ...credential },
-        ),
-      });
-      const data = responseBody(await response.text());
-
-      if (!response.ok) {
-        setMessage(data.error || (editing ? 'Could not update account.' : 'Could not create account.'));
-        return;
-      }
+      const data = await saveUser(
+        editing
+          ? { id: editing.id, authMethod, fullName: String(form.get('fullName') ?? ''), ...credential }
+          : { authMethod, fullName: String(form.get('fullName') ?? ''), role: 'staff', ...credential },
+      );
 
       formElement.reset();
       setMessage(
@@ -73,9 +42,8 @@ export function UserManager() {
             : `Staff account created. Share the ${authMethod === 'phone' ? 'mobile number and PIN' : 'email and password'} securely.`,
       );
       setEditing(null);
-      await load();
-    } catch {
-      setMessage(`Could not ${editing ? 'update' : 'create'} account. Check your connection and try again.`);
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : `Could not ${editing ? 'update' : 'create'} account. Check your connection and try again.`);
     } finally {
       setSaving(false);
     }
@@ -117,24 +85,10 @@ export function UserManager() {
             className="h-11 w-full rounded-xl border border-[#dfe5e1] px-3 text-sm"
           />
           {!editing && (
-            <div className="grid grid-cols-2 rounded-xl bg-[#eef2ef] p-1" aria-label="Staff sign-in method">
-              {(['phone', 'email'] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => {
-                    setAuthMethod(option);
-                    setMessage('');
-                  }}
-                  className={`h-9 rounded-lg text-xs font-bold ${
-                    authMethod === option ? 'bg-white text-[#18794e] shadow-sm' : 'text-[#68726c]'
-                  }`}
-                  aria-pressed={authMethod === option}
-                >
-                  {option === 'phone' ? 'Phone + PIN' : 'Email + password'}
-                </button>
-              ))}
-            </div>
+            <AuthMethodToggle value={authMethod} onChange={(method) => {
+              setAuthMethod(method);
+              setMessage('');
+            }} label="Staff sign-in method" />
           )}
           {authMethod === 'phone' ? (
             <>
@@ -188,6 +142,7 @@ export function UserManager() {
           </Button>
         </form>
         {message && <p className="mt-3 rounded-xl bg-[#eef2ef] p-3 text-xs font-semibold">{message}</p>}
+        {error && <p className="mt-3 rounded-xl bg-[#fff0ee] p-3 text-xs font-semibold text-[#9e251b]">{error}</p>}
       </Card>
       <Card className="overflow-hidden">
         <div className="border-b border-[#e8ece9] px-5 py-4">
