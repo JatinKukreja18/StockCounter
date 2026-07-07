@@ -4,7 +4,11 @@ import { UserManager } from "@/components/admin/user-manager";
 export default function UsersPage() {
   return (
     <>
-      <PageHeading eyebrow="Access" title="Users" description="Create individual staff accounts before assigning them to count sessions." />
+      <PageHeading
+        eyebrow="Access"
+        title="Users"
+        description="Create individual staff accounts before assigning them to count sessions."
+      />
       <UserManager />
     </>
   );

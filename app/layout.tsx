@@ -7,7 +7,11 @@ export const metadata: Metadata = {
   title: { default: "Sekai Stock Count", template: "%s · Sekai Stock Count" },
   description: "Offline-first physical stock counting for Sekai Ichiba.",
   applicationName: "Sekai Stock Count",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Stock Count" },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Stock Count"
+  },
   formatDetection: { telephone: false },
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icons/icon.svg", apple: "/icons/icon.svg" }
@@ -21,7 +25,9 @@ export const viewport: Viewport = {
   viewportFit: "cover"
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body>

@@ -1,5 +1,11 @@
 const CACHE = "sekai-stock-count-v2";
-const APP_SHELL = ["/count", "/offline", "/manifest.webmanifest", "/icons/icon.svg", "/icons/maskable.svg"];
+const APP_SHELL = [
+  "/count",
+  "/offline",
+  "/manifest.webmanifest",
+  "/icons/icon.svg",
+  "/icons/maskable.svg"
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)));
@@ -8,7 +14,13 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))
+        )
+      )
   );
   self.clients.claim();
 });
@@ -34,7 +46,12 @@ self.addEventListener("fetch", (event) => {
           }
           return response;
         })
-        .catch(async () => (await caches.match(request)) || (await caches.match("/count")) || caches.match("/offline"))
+        .catch(
+          async () =>
+            (await caches.match(request)) ||
+            (await caches.match("/count")) ||
+            caches.match("/offline")
+        )
     );
     return;
   }
@@ -43,7 +60,10 @@ self.addEventListener("fetch", (event) => {
     caches.match(request).then((cached) => {
       const fresh = fetch(request)
         .then((response) => {
-          if (response.ok) caches.open(CACHE).then((cache) => cache.put(request, response.clone()));
+          if (response.ok)
+            caches
+              .open(CACHE)
+              .then((cache) => cache.put(request, response.clone()));
           return response;
         })
         .catch(() => cached);

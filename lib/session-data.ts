@@ -34,7 +34,9 @@ export interface RawCountEntry {
   users?: { full_name: string } | null;
 }
 
-export function mapSessionProducts(mappings: readonly SessionProductMapping[]): Product[] {
+export function mapSessionProducts(
+  mappings: readonly SessionProductMapping[]
+): Product[] {
   const products = new Map<string, Product>();
 
   for (const mapping of mappings) {
@@ -61,7 +63,9 @@ export function mapSessionProducts(mappings: readonly SessionProductMapping[]): 
   return [...products.values()];
 }
 
-export function mapCountEntries(entries: readonly RawCountEntry[]): CountEntry[] {
+export function mapCountEntries(
+  entries: readonly RawCountEntry[]
+): CountEntry[] {
   return entries.map((entry) => ({
     id: entry.id,
     localEntryId: entry.local_entry_id,

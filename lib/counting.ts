@@ -1,16 +1,27 @@
 import type { CountEntry, LocalCountEntry } from "@/lib/types";
 
-function addQuantity(counts: Map<string, number>, batchId: string | undefined, quantity: number) {
+function addQuantity(
+  counts: Map<string, number>,
+  batchId: string | undefined,
+  quantity: number
+) {
   if (!batchId) return;
   counts.set(batchId, (counts.get(batchId) ?? 0) + quantity);
 }
 
-function addProductQuantity(counts: Map<string, number>, productId: string | undefined, quantity: number) {
+function addProductQuantity(
+  counts: Map<string, number>,
+  productId: string | undefined,
+  quantity: number
+) {
   if (!productId) return;
   counts.set(productId, (counts.get(productId) ?? 0) + quantity);
 }
 
-export function indexActiveCountQuantities(entries: readonly CountEntry[], sessionId: string) {
+export function indexActiveCountQuantities(
+  entries: readonly CountEntry[],
+  sessionId: string
+) {
   const counts = new Map<string, number>();
   for (const entry of entries) {
     if (entry.sessionId === sessionId && !entry.isVoided) {
@@ -20,7 +31,10 @@ export function indexActiveCountQuantities(entries: readonly CountEntry[], sessi
   return counts;
 }
 
-export function indexUnsyncedCountQuantities(entries: readonly LocalCountEntry[], sessionId: string) {
+export function indexUnsyncedCountQuantities(
+  entries: readonly LocalCountEntry[],
+  sessionId: string
+) {
   const counts = new Map<string, number>();
   for (const entry of entries) {
     if (entry.sessionId === sessionId && entry.syncState !== "synced") {
@@ -30,7 +44,10 @@ export function indexUnsyncedCountQuantities(entries: readonly LocalCountEntry[]
   return counts;
 }
 
-export function indexActiveProductCountQuantities(entries: readonly CountEntry[], sessionId: string) {
+export function indexActiveProductCountQuantities(
+  entries: readonly CountEntry[],
+  sessionId: string
+) {
   const counts = new Map<string, number>();
   for (const entry of entries) {
     if (entry.sessionId === sessionId && !entry.isVoided) {
@@ -40,7 +57,10 @@ export function indexActiveProductCountQuantities(entries: readonly CountEntry[]
   return counts;
 }
 
-export function indexUnsyncedProductCountQuantities(entries: readonly LocalCountEntry[], sessionId: string) {
+export function indexUnsyncedProductCountQuantities(
+  entries: readonly LocalCountEntry[],
+  sessionId: string
+) {
   const counts = new Map<string, number>();
   for (const entry of entries) {
     if (entry.sessionId === sessionId && entry.syncState !== "synced") {
@@ -55,9 +75,12 @@ export function getCountedProductIds(
   localEntries: readonly LocalCountEntry[],
   sessionId: string
 ) {
-  const productIds = new Set(indexActiveProductCountQuantities(serverEntries, sessionId).keys());
+  const productIds = new Set(
+    indexActiveProductCountQuantities(serverEntries, sessionId).keys()
+  );
   for (const entry of localEntries) {
-    if (entry.sessionId === sessionId && entry.productId) productIds.add(entry.productId);
+    if (entry.sessionId === sessionId && entry.productId)
+      productIds.add(entry.productId);
   }
   return productIds;
 }
@@ -67,9 +90,12 @@ export function getCountedBatchIds(
   localEntries: readonly LocalCountEntry[],
   sessionId: string
 ) {
-  const batchIds = new Set(indexActiveCountQuantities(serverEntries, sessionId).keys());
+  const batchIds = new Set(
+    indexActiveCountQuantities(serverEntries, sessionId).keys()
+  );
   for (const entry of localEntries) {
-    if (entry.sessionId === sessionId && entry.stockBatchId) batchIds.add(entry.stockBatchId);
+    if (entry.sessionId === sessionId && entry.stockBatchId)
+      batchIds.add(entry.stockBatchId);
   }
   return batchIds;
 }

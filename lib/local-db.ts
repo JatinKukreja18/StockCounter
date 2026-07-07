@@ -31,7 +31,9 @@ function db() {
         products.createIndex("sku", "sku", { unique: false });
         products.createIndex("name", "name", { unique: false });
 
-        const entries = store.createObjectStore("entries", { keyPath: "localEntryId" });
+        const entries = store.createObjectStore("entries", {
+          keyPath: "localEntryId"
+        });
         entries.createIndex("syncState", "syncState", { unique: false });
         entries.createIndex("createdAt", "createdAt", { unique: false });
 
@@ -48,7 +50,7 @@ export async function cacheProducts(products: Product[], ownerId: string) {
 
 export async function getCachedProducts(ownerId: string) {
   const cached = await getMeta(`products:${ownerId}`);
-  return cached ? JSON.parse(cached) as Product[] : [];
+  return cached ? (JSON.parse(cached) as Product[]) : [];
 }
 
 export async function findCachedProduct(query: string, ownerId: string) {
@@ -73,20 +75,30 @@ export async function getLocalEntries() {
 
 export async function getPendingEntries() {
   const entries = await getLocalEntries();
-  return entries.filter((entry) => entry.syncState === "pending" || entry.syncState === "failed");
+  return entries.filter(
+    (entry) => entry.syncState === "pending" || entry.syncState === "failed"
+  );
 }
 
-export async function updateLocalEntry(id: string, patch: Partial<LocalCountEntry>) {
+export async function updateLocalEntry(
+  id: string,
+  patch: Partial<LocalCountEntry>
+) {
   const store = await db();
   const entry = await store.get("entries", id);
   if (!entry) return;
-  await store.put("entries", { ...entry, ...patch, updatedAt: new Date().toISOString() });
+  await store.put("entries", {
+    ...entry,
+    ...patch,
+    updatedAt: new Date().toISOString()
+  });
 }
 
 export async function deleteLocalEntry(id: string) {
   const store = await db();
   const entry = await store.get("entries", id);
-  if (entry?.syncState === "synced") throw new Error("Synced entries cannot be deleted locally.");
+  if (entry?.syncState === "synced")
+    throw new Error("Synced entries cannot be deleted locally.");
   await store.delete("entries", id);
 }
 

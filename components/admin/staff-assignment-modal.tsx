@@ -27,32 +27,55 @@ export function StaffAssignmentModal({
   onClose: () => void;
   onSubmit: (assigneeIds: string[]) => void;
 }) {
-  const availableStaff = staff.filter((person) => !assignedIds.includes(person.id));
+  const availableStaff = staff.filter(
+    (person) => !assignedIds.includes(person.id)
+  );
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const assigneeIds = new FormData(event.currentTarget).getAll("assignees").map(String);
+    const assigneeIds = new FormData(event.currentTarget)
+      .getAll("assignees")
+      .map(String);
     onSubmit(assigneeIds);
   }
 
   return (
-    <SheetModal open={open} onClose={onClose} title={title} description={sessionName}>
+    <SheetModal
+      open={open}
+      onClose={onClose}
+      title={title}
+      description={sessionName}
+    >
       {availableStaff.length ? (
         <form onSubmit={handleSubmit} className="space-y-4">
           <fieldset>
-            <legend className="mb-1.5 text-xs font-bold">Select additional staff</legend>
+            <legend className="mb-1.5 text-xs font-bold">
+              Select additional staff
+            </legend>
             <div className="max-h-60 space-y-1 overflow-auto rounded-xl border border-[#dfe5e1] p-2">
               {availableStaff.map((person) => (
-                <label key={person.id} className="flex items-center gap-3 rounded-lg p-2 text-sm hover:bg-[#f4f7f5]">
+                <label
+                  key={person.id}
+                  className="flex items-center gap-3 rounded-lg p-2 text-sm hover:bg-[#f4f7f5]"
+                >
                   <input name="assignees" value={person.id} type="checkbox" />
-                  <span><b>{person.full_name}</b><span className="ml-2 text-xs text-[#7a847e]">{person.phone || person.email}</span></span>
+                  <span>
+                    <b>{person.full_name}</b>
+                    <span className="ml-2 text-xs text-[#7a847e]">
+                      {person.phone || person.email}
+                    </span>
+                  </span>
                 </label>
               ))}
             </div>
           </fieldset>
           <ErrorAlert message={error} />
           <Button className="w-full" type="submit" disabled={saving}>
-            {saving ? <LoaderCircle className="animate-spin" /> : <Plus size={16} />}
+            {saving ? (
+              <LoaderCircle className="animate-spin" />
+            ) : (
+              <Plus size={16} />
+            )}
             {saving ? "Adding..." : "Add selected people"}
           </Button>
         </form>

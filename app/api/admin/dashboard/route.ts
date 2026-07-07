@@ -13,15 +13,27 @@ export async function GET() {
     ] = await Promise.all([
       supabase
         .from("sessions")
-        .select("id,name,status,created_at,session_assignments(users(full_name))")
+        .select(
+          "id,name,status,created_at,session_assignments(users(full_name))"
+        )
         .eq("status", "open")
         .order("created_at", { ascending: false }),
-      supabase.from("session_product_progress").select("session_id,product_id,count_status"),
-      supabase.from("sync_issues").select("id", { count: "exact", head: true }).eq("status", "open"),
-      supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "staff"),
+      supabase
+        .from("session_product_progress")
+        .select("session_id,product_id,count_status"),
+      supabase
+        .from("sync_issues")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "open"),
+      supabase
+        .from("users")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "staff"),
       supabase
         .from("count_entries")
-        .select("id,quantity,area,synced_at,is_voided,products(name),users(full_name)")
+        .select(
+          "id,quantity,area,synced_at,is_voided,products(name),users(full_name)"
+        )
         .eq("is_voided", false)
         .order("synced_at", { ascending: false })
         .limit(8)
@@ -33,14 +45,22 @@ export async function GET() {
     if (recentError) throw recentError;
 
     const openIds = new Set((sessions ?? []).map((session) => session.id));
-    const openProgress = (progress ?? []).filter((row) => openIds.has(row.session_id));
-    const completedProducts = openProgress.filter((row) => row.count_status === "counted").length;
+    const openProgress = (progress ?? []).filter((row) =>
+      openIds.has(row.session_id)
+    );
+    const completedProducts = openProgress.filter(
+      (row) => row.count_status === "counted"
+    ).length;
     const totalProducts = openProgress.length;
     const sessionProgress = (sessions ?? []).map((session) => {
       const rows = openProgress.filter((row) => row.session_id === session.id);
-      const completed = rows.filter((row) => row.count_status === "counted").length;
+      const completed = rows.filter(
+        (row) => row.count_status === "counted"
+      ).length;
       const source = session as unknown as {
-        id: string; name: string; created_at: string;
+        id: string;
+        name: string;
+        created_at: string;
         session_assignments: Array<{ users: { full_name: string } | null }>;
       };
       return {
@@ -49,7 +69,9 @@ export async function GET() {
         completedProducts: completed,
         totalProducts: rows.length,
         percent: rows.length ? Math.round((completed / rows.length) * 100) : 0,
-        assignees: source.session_assignments.map((assignment) => assignment.users?.full_name).filter(Boolean)
+        assignees: source.session_assignments
+          .map((assignment) => assignment.users?.full_name)
+          .filter(Boolean)
       };
     });
 
@@ -57,7 +79,9 @@ export async function GET() {
       stats: {
         completedProducts,
         totalProducts,
-        overallPercent: totalProducts ? Math.round((completedProducts / totalProducts) * 100) : 0,
+        overallPercent: totalProducts
+          ? Math.round((completedProducts / totalProducts) * 100)
+          : 0,
         openSessions: sessions?.length ?? 0,
         staffUsers: staffCount ?? 0,
         openIssues: issueCount ?? 0
@@ -65,8 +89,12 @@ export async function GET() {
       sessions: sessionProgress,
       recent: (recent ?? []).map((row) => {
         const source = row as unknown as {
-          id: string; quantity: number | string; area: string | null; synced_at: string;
-          products: { name: string } | null; users: { full_name: string } | null;
+          id: string;
+          quantity: number | string;
+          area: string | null;
+          synced_at: string;
+          products: { name: string } | null;
+          users: { full_name: string } | null;
         };
         return {
           id: source.id,
@@ -80,6 +108,9 @@ export async function GET() {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Dashboard failed";
-    return NextResponse.json({ error: message }, { status: message === "Forbidden" ? 403 : 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: message === "Forbidden" ? 403 : 500 }
+    );
   }
 }

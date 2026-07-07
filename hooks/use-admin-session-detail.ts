@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiJson, getErrorMessage } from "@/lib/api-client";
-import type { AdminUserRow, AdminUsersResponse, SessionDetailData } from "@/lib/api-types";
+import type {
+  AdminUserRow,
+  AdminUsersResponse,
+  SessionDetailData
+} from "@/lib/api-types";
 import type { CountEntry, CountSession, Product } from "@/lib/types";
 
 export function useAdminSessionDetail(session: CountSession, isDemo: boolean) {
@@ -15,7 +19,10 @@ export function useAdminSessionDetail(session: CountSession, isDemo: boolean) {
 
   const refreshSession = useCallback(async () => {
     if (isDemo) return;
-    const data = await apiJson<SessionDetailData>(`/api/admin/sessions/${session.id}`, { cache: "no-store" });
+    const data = await apiJson<SessionDetailData>(
+      `/api/admin/sessions/${session.id}`,
+      { cache: "no-store" }
+    );
     setSessionData(data.session);
     setProducts(data.products);
     setEntries(data.entries);
@@ -27,7 +34,9 @@ export function useAdminSessionDetail(session: CountSession, isDemo: boolean) {
     setError("");
     try {
       const [detailData, usersData] = await Promise.all([
-        apiJson<SessionDetailData>(`/api/admin/sessions/${session.id}`, { cache: "no-store" }),
+        apiJson<SessionDetailData>(`/api/admin/sessions/${session.id}`, {
+          cache: "no-store"
+        }),
         apiJson<AdminUsersResponse>("/api/admin/users", { cache: "no-store" })
       ]);
       setSessionData(detailData.session);
@@ -46,38 +55,59 @@ export function useAdminSessionDetail(session: CountSession, isDemo: boolean) {
   }, [refresh]);
 
   const closeSession = useCallback(async () => {
-    await apiJson<Record<string, unknown>>(`/api/admin/sessions/${session.id}`, { method: "PATCH" });
+    await apiJson<Record<string, unknown>>(
+      `/api/admin/sessions/${session.id}`,
+      { method: "PATCH" }
+    );
     await refreshSession();
   }, [refreshSession, session.id]);
 
-  const changeEntry = useCallback(async (entryId: string, action: "void" | "correct", quantity?: number) => {
-    await apiJson<Record<string, unknown>>(`/api/admin/sessions/${session.id}/entries`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entryId, action, quantity })
-    });
-    await refreshSession();
-  }, [refreshSession, session.id]);
+  const changeEntry = useCallback(
+    async (entryId: string, action: "void" | "correct", quantity?: number) => {
+      await apiJson<Record<string, unknown>>(
+        `/api/admin/sessions/${session.id}/entries`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ entryId, action, quantity })
+        }
+      );
+      await refreshSession();
+    },
+    [refreshSession, session.id]
+  );
 
-  const addPeople = useCallback(async (assigneeIds: string[]) => {
-    await apiJson<Record<string, unknown>>(`/api/admin/sessions/${session.id}/assignments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assigneeIds })
-    });
-    await refreshSession();
-  }, [refreshSession, session.id]);
+  const addPeople = useCallback(
+    async (assigneeIds: string[]) => {
+      await apiJson<Record<string, unknown>>(
+        `/api/admin/sessions/${session.id}/assignments`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assigneeIds })
+        }
+      );
+      await refreshSession();
+    },
+    [refreshSession, session.id]
+  );
 
-  const renameSession = useCallback(async (name: string) => {
-    const data = await apiJson<{ name?: string }>(`/api/admin/sessions/${session.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name })
-    });
-    const savedName = data.name ?? name;
-    setSessionData((current) => ({ ...current, name: savedName }));
-    return savedName;
-  }, [session.id]);
+  const renameSession = useCallback(
+    async (name: string) => {
+      const data = await apiJson<{ name?: string }>(
+        `/api/admin/sessions/${session.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        }
+      );
+      const savedName = data.name ?? name;
+      setSessionData((current) => ({ ...current, name: savedName }));
+      return savedName;
+    },
+    [session.id]
+  );
 
   return {
     sessionData,

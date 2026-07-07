@@ -10,14 +10,19 @@ export function AuthMethodToggle({
   label?: string;
 }) {
   return (
-    <div className="grid grid-cols-2 rounded-xl bg-[#eef2ef] p-1" aria-label={label}>
+    <div
+      className="grid grid-cols-2 rounded-xl bg-[#eef2ef] p-1"
+      aria-label={label}
+    >
       {(["phone", "email"] as const).map((option) => (
         <button
           key={option}
           type="button"
           onClick={() => onChange(option)}
           className={`h-10 rounded-lg text-sm font-bold transition ${
-            value === option ? "bg-white text-[#18794e] shadow-sm" : "text-[#68726c]"
+            value === option
+              ? "bg-white text-[#18794e] shadow-sm"
+              : "text-[#68726c]"
           }`}
           aria-pressed={value === option}
         >

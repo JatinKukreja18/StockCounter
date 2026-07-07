@@ -13,7 +13,11 @@ export function useAdminDashboard() {
     setLoading(true);
     setError("");
     try {
-      setData(await apiJson<DashboardData>("/api/admin/dashboard", { cache: "no-store" }));
+      setData(
+        await apiJson<DashboardData>("/api/admin/dashboard", {
+          cache: "no-store"
+        })
+      );
     } catch (reason) {
       setError(getErrorMessage(reason, "Could not load dashboard."));
     } finally {

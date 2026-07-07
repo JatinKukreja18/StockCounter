@@ -1,5 +1,10 @@
 import type { ImportedStockProduct } from "@/lib/gofrugal-import";
-import type { CountEntry, CountSession, SyncEntryResult, SyncIssue } from "@/lib/types";
+import type {
+  CountEntry,
+  CountSession,
+  SyncEntryResult,
+  SyncIssue
+} from "@/lib/types";
 import type { Product } from "@/lib/types";
 
 export type UserProfile = {
@@ -117,7 +122,16 @@ export type UpdateUserPayload = CreateUserPayload & {
 };
 
 export type IssueResolution =
-  | { issueId: string; resolution: "accepted" | "corrected" | "voided"; quantity?: number }
-  | { issueId: string; resolution: "assigned"; sessionId: string; stockBatchId: string };
+  | {
+      issueId: string;
+      resolution: "accepted" | "corrected" | "voided";
+      quantity?: number;
+    }
+  | {
+      issueId: string;
+      resolution: "assigned";
+      sessionId: string;
+      stockBatchId: string;
+    };
 
 export type { SyncIssue };

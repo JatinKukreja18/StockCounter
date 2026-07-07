@@ -4,7 +4,11 @@ import { getAuthenticatedProfile } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({
+  children
+}: {
+  children: React.ReactNode;
+}) {
   if (isDemoMode()) return children;
 
   let role: "admin" | "staff";

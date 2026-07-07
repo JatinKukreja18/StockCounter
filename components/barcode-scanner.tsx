@@ -37,7 +37,9 @@ export function BarcodeScanner({
           () => undefined
         );
       } catch {
-        setError("Camera could not start. Check camera permission or enter the barcode below.");
+        setError(
+          "Camera could not start. Check camera permission or enter the barcode below."
+        );
       }
     }
 
@@ -58,10 +60,21 @@ export function BarcodeScanner({
           <p className="font-bold">Scan barcode</p>
           <p className="text-xs text-white/60">Hold steady inside the frame</p>
         </div>
-        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={onClose} aria-label="Close scanner"><X /></Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-white hover:bg-white/10"
+          onClick={onClose}
+          aria-label="Close scanner"
+        >
+          <X />
+        </Button>
       </div>
       <div className="relative flex flex-1 items-center justify-center overflow-hidden">
-        <div id={elementId} className="w-full max-w-xl overflow-hidden [&_video]:min-h-[55dvh] [&_video]:object-cover" />
+        <div
+          id={elementId}
+          className="w-full max-w-xl overflow-hidden [&_video]:min-h-[55dvh] [&_video]:object-cover"
+        />
         {!error && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
             <div className="relative h-40 w-[min(80vw,320px)] rounded-2xl border-2 border-white/80">

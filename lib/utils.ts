@@ -6,7 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatNumber(value: number) {
-  return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(value);
+  return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(
+    value
+  );
 }
 
 export function formatTime(value?: string | null) {

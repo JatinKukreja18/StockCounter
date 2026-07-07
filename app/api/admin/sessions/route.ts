@@ -41,24 +41,47 @@ export async function GET() {
     const { supabase } = await requireAdmin();
     const { data, error } = await supabase
       .from("sessions")
-      .select("id,name,status,category,store,stock_import_id,created_at,closed_at,stock_imports(file_name),session_assignments(user_id,users(full_name)),session_products(product_id)")
+      .select(
+        "id,name,status,category,store,stock_import_id,created_at,closed_at,stock_imports(file_name),session_assignments(user_id,users(full_name)),session_products(product_id)"
+      )
       .order("created_at", { ascending: false });
     if (error) throw error;
     const sessionIds = (data ?? []).map((row) => row.id);
-    const [{ data: progress, error: progressError }, { data: entries, error: entriesError }] = sessionIds.length
+    const [
+      { data: progress, error: progressError },
+      { data: entries, error: entriesError }
+    ] = sessionIds.length
       ? await Promise.all([
-          supabase.from("session_product_progress").select("session_id,count_status").in("session_id", sessionIds),
-          supabase.from("count_entries").select("session_id").in("session_id", sessionIds)
+          supabase
+            .from("session_product_progress")
+            .select("session_id,count_status")
+            .in("session_id", sessionIds),
+          supabase
+            .from("count_entries")
+            .select("session_id")
+            .in("session_id", sessionIds)
         ])
-      : [{ data: [], error: null }, { data: [], error: null }];
+      : [
+          { data: [], error: null },
+          { data: [], error: null }
+        ];
     if (progressError) throw progressError;
     if (entriesError) throw entriesError;
     const sessions = (data ?? []).map((row) => {
       const source = row as unknown as {
-        id: string; name: string; status: "draft" | "open" | "closed"; category: string | null; store: string;
-        stock_import_id: string; created_at: string; closed_at: string | null;
+        id: string;
+        name: string;
+        status: "draft" | "open" | "closed";
+        category: string | null;
+        store: string;
+        stock_import_id: string;
+        created_at: string;
+        closed_at: string | null;
         stock_imports: { file_name: string } | null;
-        session_assignments: Array<{ user_id: string | null; users: { full_name: string } | null }>;
+        session_assignments: Array<{
+          user_id: string | null;
+          users: { full_name: string } | null;
+        }>;
         session_products: Array<{ product_id: string }>;
       };
       return {
@@ -69,19 +92,33 @@ export async function GET() {
         status: source.status,
         category: source.category ?? "All",
         store: source.store,
-        productIds: [...new Set(source.session_products.map((item) => item.product_id))],
-        assignees: source.session_assignments.map((item) => item.users?.full_name).filter(Boolean),
-        assigneeIds: source.session_assignments.map((item) => item.user_id).filter(Boolean),
+        productIds: [
+          ...new Set(source.session_products.map((item) => item.product_id))
+        ],
+        assignees: source.session_assignments
+          .map((item) => item.users?.full_name)
+          .filter(Boolean),
+        assigneeIds: source.session_assignments
+          .map((item) => item.user_id)
+          .filter(Boolean),
         createdAt: source.created_at,
         closedAt: source.closed_at ?? undefined,
-        completedProductCount: (progress ?? []).filter((item) => item.session_id === source.id && item.count_status === "counted").length,
-        entryCount: (entries ?? []).filter((item) => item.session_id === source.id).length
+        completedProductCount: (progress ?? []).filter(
+          (item) =>
+            item.session_id === source.id && item.count_status === "counted"
+        ).length,
+        entryCount: (entries ?? []).filter(
+          (item) => item.session_id === source.id
+        ).length
       };
     });
     return NextResponse.json({ sessions });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed";
-    return NextResponse.json({ error: message }, { status: message === "Forbidden" ? 403 : 401 });
+    return NextResponse.json(
+      { error: message },
+      { status: message === "Forbidden" ? 403 : 401 }
+    );
   }
 }
 
@@ -89,7 +126,11 @@ export async function POST(request: Request) {
   try {
     const { supabase } = await requireAdmin();
     const parsed = createSchema.safeParse(await request.json());
-    if (!parsed.success) return NextResponse.json({ error: "Invalid session import", details: parsed.error.flatten() }, { status: 400 });
+    if (!parsed.success)
+      return NextResponse.json(
+        { error: "Invalid session import", details: parsed.error.flatten() },
+        { status: 400 }
+      );
     const { data, error } = await supabase.rpc("create_count_session", {
       p_name: parsed.data.name,
       p_file_name: parsed.data.fileName,
@@ -97,16 +138,22 @@ export async function POST(request: Request) {
       p_assignee_ids: parsed.data.assigneeIds
     });
     if (error) {
-      return NextResponse.json({
-        error: error.message || "Session import failed",
-        details: error.details,
-        hint: error.hint,
-        code: error.code
-      }, { status: 500 });
+      return NextResponse.json(
+        {
+          error: error.message || "Session import failed",
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        },
+        { status: 500 }
+      );
     }
     return NextResponse.json({ sessionId: data }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Import failed";
-    return NextResponse.json({ error: message }, { status: message === "Forbidden" ? 403 : 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: message === "Forbidden" ? 403 : 500 }
+    );
   }
 }

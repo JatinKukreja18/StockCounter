@@ -15,7 +15,9 @@ const demoProfile: UserProfile = {
 
 export function useMe() {
   const isDemo = isDemoMode();
-  const [profile, setProfile] = useState<UserProfile | null>(isDemo ? demoProfile : null);
+  const [profile, setProfile] = useState<UserProfile | null>(
+    isDemo ? demoProfile : null
+  );
   const [loading, setLoading] = useState(!isDemo);
   const [error, setError] = useState<string | null>(null);
 

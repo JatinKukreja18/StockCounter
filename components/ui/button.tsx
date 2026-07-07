@@ -8,7 +8,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary: "bg-[#18794e] text-white hover:bg-[#0f5e3b] shadow-sm",
-        secondary: "border border-[#dfe5e1] bg-white text-[#18211d] hover:bg-[#f5f7f5]",
+        secondary:
+          "border border-[#dfe5e1] bg-white text-[#18211d] hover:bg-[#f5f7f5]",
         ghost: "text-[#56615b] hover:bg-[#edf1ee]",
         danger: "bg-[#b42318] text-white hover:bg-[#8f1c13]",
         amber: "bg-[#fff1ca] text-[#874300] hover:bg-[#ffe7a4]"
@@ -29,5 +30,10 @@ export interface ButtonProps
     VariantProps<typeof buttonVariants> {}
 
 export function Button({ className, variant, size, ...props }: ButtonProps) {
-  return <button className={cn(buttonVariants({ variant, size }), className)} {...props} />;
+  return (
+    <button
+      className={cn(buttonVariants({ variant, size }), className)}
+      {...props}
+    />
+  );
 }

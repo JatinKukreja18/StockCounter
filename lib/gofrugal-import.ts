@@ -43,7 +43,8 @@ export interface GoFrugalImportResult {
 }
 
 const clean = (value: unknown) => String(value ?? "").trim();
-const normalizeHeader = (value: unknown) => clean(value).toUpperCase().replace(/\s+/g, " ");
+const normalizeHeader = (value: unknown) =>
+  clean(value).toUpperCase().replace(/\s+/g, " ");
 
 function numberFrom(value: unknown): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -89,7 +90,9 @@ function reportCategory(rows: unknown[][]) {
 
 function reportStore(rows: unknown[][]) {
   const heading = clean(rows[0]?.[0]);
-  const companyMatch = heading.match(/^Company\d*:\s*([^,]+),([^,]+?)(?:\d{10})?,GSTNO:/i);
+  const companyMatch = heading.match(
+    /^Company\d*:\s*([^,]+),([^,]+?)(?:\d{10})?,GSTNO:/i
+  );
   if (!companyMatch) return "Main Store";
   const code = companyMatch[1].trim();
   const name = companyMatch[2].trim().replace(/(\D)\d{10}$/, "$1");
@@ -102,30 +105,42 @@ function reportCompany(rows: unknown[][]) {
       const text = clean(value);
       const labelled = text.match(/^Company Name\s*:\s*(.+)$/i);
       if (labelled) return labelled[1].trim();
-      if (/ASIANA FOOD AND BEVERAGE LLP/i.test(text)) return "ASIANA FOOD AND BEVERAGE LLP";
+      if (/ASIANA FOOD AND BEVERAGE LLP/i.test(text))
+        return "ASIANA FOOD AND BEVERAGE LLP";
     }
   }
   return "ASIANA FOOD AND BEVERAGE LLP";
 }
 
-function productTotalBatch(product: ImportedStockProduct): ImportedStockProduct {
-  const purchasePrices = new Set(product.batches.map((batch) => batch.purchasePrice));
-  const landingCosts = new Set(product.batches.map((batch) => batch.landingCost));
-  const distributors = new Set(product.batches.map((batch) => batch.distributor).filter(Boolean));
+function productTotalBatch(
+  product: ImportedStockProduct
+): ImportedStockProduct {
+  const purchasePrices = new Set(
+    product.batches.map((batch) => batch.purchasePrice)
+  );
+  const landingCosts = new Set(
+    product.batches.map((batch) => batch.landingCost)
+  );
+  const distributors = new Set(
+    product.batches.map((batch) => batch.distributor).filter(Boolean)
+  );
   return {
     ...product,
     batchCount: 1,
-    batches: [{
-      batchKey: `${product.sku}::product-total`,
-      batchNo: "",
-      expiryDate: null,
-      inwardTranno: "",
-      transactionDate: null,
-      currentStock: product.systemQty,
-      purchasePrice: purchasePrices.size === 1 ? [...purchasePrices][0] : null,
-      landingCost: landingCosts.size === 1 ? [...landingCosts][0] : null,
-      distributor: distributors.size === 1 ? [...distributors][0] : ""
-    }]
+    batches: [
+      {
+        batchKey: `${product.sku}::product-total`,
+        batchNo: "",
+        expiryDate: null,
+        inwardTranno: "",
+        transactionDate: null,
+        currentStock: product.systemQty,
+        purchasePrice:
+          purchasePrices.size === 1 ? [...purchasePrices][0] : null,
+        landingCost: landingCosts.size === 1 ? [...landingCosts][0] : null,
+        distributor: distributors.size === 1 ? [...distributors][0] : ""
+      }
+    ]
   };
 }
 
@@ -141,8 +156,16 @@ function parseGoFrugalSheet(
     raw: false,
     blankrows: true
   });
-  const headerRowIndex = findHeaderRow(rows, ["Item Name", "Item Code", "Current Stock", "EAN Code"]);
-  if (headerRowIndex < 0) throw new Error("This sheet does not contain GoFrugal Current Stock Detail columns.");
+  const headerRowIndex = findHeaderRow(rows, [
+    "Item Name",
+    "Item Code",
+    "Current Stock",
+    "EAN Code"
+  ]);
+  if (headerRowIndex < 0)
+    throw new Error(
+      "This sheet does not contain GoFrugal Current Stock Detail columns."
+    );
 
   const headers = rows[headerRowIndex];
   const columns = {
@@ -177,10 +200,18 @@ function parseGoFrugalSheet(
     if (!current.sku) {
       warnings.push(`${current.product}: missing Item Code; row skipped.`);
     } else {
-      if (!current.barcode) warnings.push(`${current.product} (${current.sku}): EAN Code is missing; search will still work.`);
-      const batchTotal = current.batches.reduce((sum, batch) => sum + batch.currentStock, 0);
+      if (!current.barcode)
+        warnings.push(
+          `${current.product} (${current.sku}): EAN Code is missing; search will still work.`
+        );
+      const batchTotal = current.batches.reduce(
+        (sum, batch) => sum + batch.currentStock,
+        0
+      );
       if (Math.abs(batchTotal - current.systemQty) > 0.001) {
-        warnings.push(`${current.product} (${current.sku}): batch stock ${batchTotal} does not match product stock ${current.systemQty}.`);
+        warnings.push(
+          `${current.product} (${current.sku}): batch stock ${batchTotal} does not match product stock ${current.systemQty}.`
+        );
       }
       products.push(productTotalBatch(current));
     }
@@ -228,11 +259,18 @@ function parseGoFrugalSheet(
       current.sellingPrice ??= numberFrom(row[columns.selling]);
       current.mrp ??= numberFrom(row[columns.mrp]);
       const rawBatchNo = clean(row[columns.batchNo]);
-      const batchNo = rawBatchNo && !["none", "null", "."].includes(rawBatchNo.toLowerCase()) ? rawBatchNo : "";
+      const batchNo =
+        rawBatchNo && !["none", "null", "."].includes(rawBatchNo.toLowerCase())
+          ? rawBatchNo
+          : "";
       const inwardTranno = clean(row[columns.inwardTranno]);
       const expiryDate = clean(row[columns.expiryDate]) || null;
       const transactionDate = clean(row[columns.transactionDate]) || null;
-      const batchKey = [itemCode, batchNo || inwardTranno || `row-${headerRowIndex + batchRows + 1}`, expiryDate || "no-expiry"].join("::");
+      const batchKey = [
+        itemCode,
+        batchNo || inwardTranno || `row-${headerRowIndex + batchRows + 1}`,
+        expiryDate || "no-expiry"
+      ].join("::");
       current.batches.push({
         batchKey,
         batchNo,
@@ -247,15 +285,22 @@ function parseGoFrugalSheet(
 
       const batchBarcode = clean(row[columns.ean]);
       if (batchBarcode && current.barcode && batchBarcode !== current.barcode) {
-        warnings.push(`${current.product} (${itemCode}) has multiple EAN codes; using ${current.barcode}.`);
+        warnings.push(
+          `${current.product} (${itemCode}) has multiple EAN codes; using ${current.barcode}.`
+        );
       }
     }
   }
   finishCurrent();
 
-  const productTotal = products.reduce((sum, product) => sum + product.systemQty, 0);
+  const productTotal = products.reduce(
+    (sum, product) => sum + product.systemQty,
+    0
+  );
   if (grandTotal !== null && Math.abs(productTotal - grandTotal) > 0.001) {
-    warnings.push(`Product stock total ${productTotal} does not match report Grand Total ${grandTotal}.`);
+    warnings.push(
+      `Product stock total ${productTotal} does not match report Grand Total ${grandTotal}.`
+    );
   }
 
   return {
@@ -285,8 +330,15 @@ function parseGoFrugalFlatSheet(
     raw: false,
     blankrows: true
   });
-  const headerRowIndex = findNormalizedHeaderRow(rows.slice(0, 20), ["ITEM CODE", "CURRENT STK.", "EAN CODE"]);
-  if (headerRowIndex < 0) throw new Error("This sheet does not contain GoFrugal Current Stock Detail columns.");
+  const headerRowIndex = findNormalizedHeaderRow(rows.slice(0, 20), [
+    "ITEM CODE",
+    "CURRENT STK.",
+    "EAN CODE"
+  ]);
+  if (headerRowIndex < 0)
+    throw new Error(
+      "This sheet does not contain GoFrugal Current Stock Detail columns."
+    );
 
   const headers = rows[headerRowIndex];
   const columns = {
@@ -312,9 +364,21 @@ function parseGoFrugalFlatSheet(
 
   const category = reportCategory(rows);
   const company = reportCompany(rows);
-  const address = rows.slice(0, 10).flat().map(clean).find((value) => /^Company Address:/i.test(value));
-  const addressParts = address?.replace(/^Company Address:/i, "").split(",").map((part) => part.trim()).filter(Boolean) ?? [];
-  const store = addressParts.length > 1 ? `${addressParts[0]} · ${addressParts[1]}` : addressParts[0] || "Main Store";
+  const address = rows
+    .slice(0, 10)
+    .flat()
+    .map(clean)
+    .find((value) => /^Company Address:/i.test(value));
+  const addressParts =
+    address
+      ?.replace(/^Company Address:/i, "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean) ?? [];
+  const store =
+    addressParts.length > 1
+      ? `${addressParts[0]} · ${addressParts[1]}`
+      : addressParts[0] || "Main Store";
   const products: ImportedStockProduct[] = [];
   const warnings: string[] = [];
   let current: ImportedStockProduct | null = null;
@@ -326,10 +390,18 @@ function parseGoFrugalFlatSheet(
     if (!current.sku) {
       warnings.push(`${current.product}: missing Item Code; row skipped.`);
     } else {
-      if (!current.barcode) warnings.push(`${current.product} (${current.sku}): EAN Code is missing; search will still work.`);
-      const batchTotal = current.batches.reduce((sum, batch) => sum + batch.currentStock, 0);
+      if (!current.barcode)
+        warnings.push(
+          `${current.product} (${current.sku}): EAN Code is missing; search will still work.`
+        );
+      const batchTotal = current.batches.reduce(
+        (sum, batch) => sum + batch.currentStock,
+        0
+      );
       if (Math.abs(batchTotal - current.systemQty) > 0.001) {
-        warnings.push(`${current.product} (${current.sku}): batch stock ${batchTotal} does not match product stock ${current.systemQty}.`);
+        warnings.push(
+          `${current.product} (${current.sku}): batch stock ${batchTotal} does not match product stock ${current.systemQty}.`
+        );
       }
       products.push(productTotalBatch(current));
     }
@@ -359,7 +431,8 @@ function parseGoFrugalFlatSheet(
     }
 
     if (/^GROUP TOTAL\b/i.test(firstCell) && current) {
-      current.systemQty = numberFrom(row[columns.currentStock]) ?? current.systemQty;
+      current.systemQty =
+        numberFrom(row[columns.currentStock]) ?? current.systemQty;
       finishCurrent();
       continue;
     }
@@ -375,7 +448,8 @@ function parseGoFrugalFlatSheet(
     batchRows += 1;
     current.batchCount += 1;
     current.sku ||= itemCode;
-    current.barcode ||= clean(row[columns.ean]) || clean(row[columns.barcodeValue]);
+    current.barcode ||=
+      clean(row[columns.ean]) || clean(row[columns.barcodeValue]);
     current.category ||= clean(row[columns.category]);
     current.department ||= clean(row[columns.subCategory]);
     current.sellingPrice ??= numberFrom(row[columns.selling]);
@@ -384,14 +458,23 @@ function parseGoFrugalFlatSheet(
       clean(row[columns.rack]) && `Rack ${clean(row[columns.rack])}`,
       clean(row[columns.shelf]) && `Shelf ${clean(row[columns.shelf])}`,
       clean(row[columns.box]) && `Box ${clean(row[columns.box])}`
-    ].filter(Boolean).join(" · ");
+    ]
+      .filter(Boolean)
+      .join(" · ");
     current.location ||= location;
     const rawBatchNo = clean(row[columns.batchNo]);
-    const batchNo = rawBatchNo && !["none", "null", "."].includes(rawBatchNo.toLowerCase()) ? rawBatchNo : "";
+    const batchNo =
+      rawBatchNo && !["none", "null", "."].includes(rawBatchNo.toLowerCase())
+        ? rawBatchNo
+        : "";
     const inwardTranno = clean(row[columns.inwardTranno]);
     const expiryDate = clean(row[columns.expiryDate]) || null;
     current.batches.push({
-      batchKey: [itemCode, batchNo || inwardTranno || `row-${headerRowIndex + offset + 2}`, expiryDate || "no-expiry"].join("::"),
+      batchKey: [
+        itemCode,
+        batchNo || inwardTranno || `row-${headerRowIndex + offset + 2}`,
+        expiryDate || "no-expiry"
+      ].join("::"),
       batchNo,
       expiryDate,
       inwardTranno,
@@ -404,15 +487,28 @@ function parseGoFrugalFlatSheet(
   }
   finishCurrent();
 
-  const productTotal = products.reduce((sum, product) => sum + product.systemQty, 0);
+  const productTotal = products.reduce(
+    (sum, product) => sum + product.systemQty,
+    0
+  );
   if (grandTotal !== null && Math.abs(productTotal - grandTotal) > 0.001) {
-    warnings.push(`Product stock total ${productTotal} does not match report Net Total ${grandTotal}.`);
+    warnings.push(
+      `Product stock total ${productTotal} does not match report Net Total ${grandTotal}.`
+    );
   }
   return {
     format: "gofrugal-current-stock",
     products,
     warnings,
-    metadata: { company, store, category, sheetName, sourceRows: rows.length, batchRows, grandTotal }
+    metadata: {
+      company,
+      store,
+      category,
+      sheetName,
+      sourceRows: rows.length,
+      batchRows,
+      grandTotal
+    }
   };
 }
 
@@ -421,36 +517,60 @@ function parseGenericSheet(
   sheet: WorkSheet,
   sheetName: string
 ): GoFrugalImportResult {
-  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false });
-  const products = raw.map((row) => ({
-    barcode: clean(row.Barcode ?? row.barcode ?? row["Bar Code"] ?? row["EAN Code"]),
-    sku: clean(row.SKU ?? row.sku ?? row["Item Code"]),
-    product: clean(row.Product ?? row.product ?? row["Item Name"] ?? row.Name),
-    category: clean(row.Category ?? row.category) || "Uncategorised",
-    department: clean(row.Department ?? row["Dept. Name"]),
-    store: clean(row.Store ?? row.store) || "Main Store",
-    location: clean(row.Location),
-    systemQty: numberFrom(row["System Qty"] ?? row["Current Stock"] ?? row.Stock ?? row.Quantity) ?? 0,
-    sellingPrice: numberFrom(row.Selling ?? row["Selling Price"]),
-    mrp: numberFrom(row.MRP),
-    batchCount: 1,
-    batches: [{
-      batchKey: `${clean(row.SKU ?? row.sku ?? row["Item Code"])}::default`,
-      batchNo: clean(row["Batch No"]),
-      expiryDate: clean(row["Expiry Date"]) || null,
-      inwardTranno: clean(row["Inward Tranno"]),
-      transactionDate: clean(row["Tran Date"]) || null,
-      currentStock: numberFrom(row["System Qty"] ?? row["Current Stock"] ?? row.Stock ?? row.Quantity) ?? 0,
-      purchasePrice: numberFrom(row["Pur Price"]),
-      landingCost: numberFrom(row["Landing Cost"]),
-      distributor: clean(row["Dist. Name"])
-    }]
-  })).filter((row) => row.sku || row.barcode);
+  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+    defval: "",
+    raw: false
+  });
+  const products = raw
+    .map((row) => ({
+      barcode: clean(
+        row.Barcode ?? row.barcode ?? row["Bar Code"] ?? row["EAN Code"]
+      ),
+      sku: clean(row.SKU ?? row.sku ?? row["Item Code"]),
+      product: clean(
+        row.Product ?? row.product ?? row["Item Name"] ?? row.Name
+      ),
+      category: clean(row.Category ?? row.category) || "Uncategorised",
+      department: clean(row.Department ?? row["Dept. Name"]),
+      store: clean(row.Store ?? row.store) || "Main Store",
+      location: clean(row.Location),
+      systemQty:
+        numberFrom(
+          row["System Qty"] ?? row["Current Stock"] ?? row.Stock ?? row.Quantity
+        ) ?? 0,
+      sellingPrice: numberFrom(row.Selling ?? row["Selling Price"]),
+      mrp: numberFrom(row.MRP),
+      batchCount: 1,
+      batches: [
+        {
+          batchKey: `${clean(row.SKU ?? row.sku ?? row["Item Code"])}::default`,
+          batchNo: clean(row["Batch No"]),
+          expiryDate: clean(row["Expiry Date"]) || null,
+          inwardTranno: clean(row["Inward Tranno"]),
+          transactionDate: clean(row["Tran Date"]) || null,
+          currentStock:
+            numberFrom(
+              row["System Qty"] ??
+                row["Current Stock"] ??
+                row.Stock ??
+                row.Quantity
+            ) ?? 0,
+          purchasePrice: numberFrom(row["Pur Price"]),
+          landingCost: numberFrom(row["Landing Cost"]),
+          distributor: clean(row["Dist. Name"])
+        }
+      ]
+    }))
+    .filter((row) => row.sku || row.barcode);
 
   return {
     format: "generic",
     products,
-    warnings: products.filter((product) => !product.barcode).map((product) => `${product.product} (${product.sku}): barcode is missing.`),
+    warnings: products
+      .filter((product) => !product.barcode)
+      .map(
+        (product) => `${product.product} (${product.sku}): barcode is missing.`
+      ),
     metadata: {
       company: "",
       store: products[0]?.store ?? "Main Store",
@@ -463,14 +583,31 @@ function parseGenericSheet(
   };
 }
 
-export function parseStockWorkbook(XLSX: typeof import("xlsx"), workbook: WorkBook): GoFrugalImportResult {
+export function parseStockWorkbook(
+  XLSX: typeof import("xlsx"),
+  workbook: WorkBook
+): GoFrugalImportResult {
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) throw new Error("The workbook does not contain a sheet.");
   const sheet = workbook.Sheets[sheetName];
-  const preview = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: false, range: 0 });
-  const goFrugalHeader = findHeaderRow(preview.slice(0, 20), ["Item Name", "Item Code", "Current Stock", "EAN Code"]);
+  const preview = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: "",
+    raw: false,
+    range: 0
+  });
+  const goFrugalHeader = findHeaderRow(preview.slice(0, 20), [
+    "Item Name",
+    "Item Code",
+    "Current Stock",
+    "EAN Code"
+  ]);
   if (goFrugalHeader >= 0) return parseGoFrugalSheet(XLSX, sheet, sheetName);
-  const flatGoFrugalHeader = findNormalizedHeaderRow(preview.slice(0, 20), ["ITEM CODE", "CURRENT STK.", "EAN CODE"]);
+  const flatGoFrugalHeader = findNormalizedHeaderRow(preview.slice(0, 20), [
+    "ITEM CODE",
+    "CURRENT STK.",
+    "EAN CODE"
+  ]);
   return flatGoFrugalHeader >= 0
     ? parseGoFrugalFlatSheet(XLSX, sheet, sheetName)
     : parseGenericSheet(XLSX, sheet, sheetName);

@@ -4,15 +4,26 @@ import { cookies } from "next/headers";
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error("Supabase environment variables are not configured.");
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key)
+    throw new Error("Supabase environment variables are not configured.");
 
   return createServerClient(url, key, {
     cookies: {
       getAll: () => cookieStore.getAll(),
-      setAll: (cookiesToSet: Array<{ name: string; value: string; options: CookieOptions }>) => {
+      setAll: (
+        cookiesToSet: Array<{
+          name: string;
+          value: string;
+          options: CookieOptions;
+        }>
+      ) => {
         try {
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
         } catch {
           // Server Components cannot set cookies. Middleware refreshes them.
         }
@@ -36,7 +47,18 @@ export async function getAuthenticatedProfile() {
     .eq("id", user.id)
     .single();
   if (error || !profile) throw new Error("User profile is not configured.");
-  return { supabase, user, profile: profile as { id: string; email: string; phone: string | null; full_name: string; role: "admin" | "staff"; group_name: string | null } };
+  return {
+    supabase,
+    user,
+    profile: profile as {
+      id: string;
+      email: string;
+      phone: string | null;
+      full_name: string;
+      role: "admin" | "staff";
+      group_name: string | null;
+    }
+  };
 }
 
 export async function requireAdmin() {

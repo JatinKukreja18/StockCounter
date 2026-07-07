@@ -11,7 +11,9 @@ import type {
 } from "@/lib/api-types";
 import type { CountSession } from "@/lib/types";
 
-export function useAdminSessions({ autoLoad = true }: { autoLoad?: boolean } = {}) {
+export function useAdminSessions({
+  autoLoad = true
+}: { autoLoad?: boolean } = {}) {
   const [sessions, setSessions] = useState<CountSession[]>([]);
   const [staff, setStaff] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(autoLoad);
@@ -22,7 +24,9 @@ export function useAdminSessions({ autoLoad = true }: { autoLoad?: boolean } = {
     setError("");
     try {
       const [sessionsData, usersData] = await Promise.all([
-        apiJson<AdminSessionsResponse>("/api/admin/sessions", { cache: "no-store" }),
+        apiJson<AdminSessionsResponse>("/api/admin/sessions", {
+          cache: "no-store"
+        }),
         apiJson<AdminUsersResponse>("/api/admin/users", { cache: "no-store" })
       ]);
       setSessions(sessionsData.sessions ?? []);
@@ -41,24 +45,44 @@ export function useAdminSessions({ autoLoad = true }: { autoLoad?: boolean } = {
     if (autoLoad) void refresh().catch(() => undefined);
   }, [autoLoad, refresh]);
 
-  const createSession = useCallback(async (payload: CreateSessionPayload) => {
-    const data = await apiJson<CreateSessionResponse>("/api/admin/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    await refresh();
-    return data;
-  }, [refresh]);
+  const createSession = useCallback(
+    async (payload: CreateSessionPayload) => {
+      const data = await apiJson<CreateSessionResponse>("/api/admin/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      await refresh();
+      return data;
+    },
+    [refresh]
+  );
 
-  const addPeople = useCallback(async (sessionId: string, assigneeIds: string[]) => {
-    await apiJson<Record<string, unknown>>(`/api/admin/sessions/${sessionId}/assignments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assigneeIds })
-    });
-    await refresh();
-  }, [refresh]);
+  const addPeople = useCallback(
+    async (sessionId: string, assigneeIds: string[]) => {
+      await apiJson<Record<string, unknown>>(
+        `/api/admin/sessions/${sessionId}/assignments`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assigneeIds })
+        }
+      );
+      await refresh();
+    },
+    [refresh]
+  );
 
-  return { sessions, setSessions, staff, setStaff, loading, error, setError, refresh, createSession, addPeople };
+  return {
+    sessions,
+    setSessions,
+    staff,
+    setStaff,
+    loading,
+    error,
+    setError,
+    refresh,
+    createSession,
+    addPeople
+  };
 }

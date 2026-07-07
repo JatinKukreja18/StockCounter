@@ -25,16 +25,23 @@ export async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
       body = JSON.parse(text) as Record<string, unknown>;
     } catch {
       if (!response.ok) {
-        throw new ApiError(text || `Request failed (${response.status})`, response.status);
+        throw new ApiError(
+          text || `Request failed (${response.status})`,
+          response.status
+        );
       }
-      throw new ApiError("The server returned an unreadable response.", response.status);
+      throw new ApiError(
+        "The server returned an unreadable response.",
+        response.status
+      );
     }
   }
 
   if (!response.ok) {
-    const message = [body.error, body.details, body.hint]
-      .filter((value) => typeof value === "string" && value.length > 0)
-      .join(" ") || `Request failed (${response.status})`;
+    const message =
+      [body.error, body.details, body.hint]
+        .filter((value) => typeof value === "string" && value.length > 0)
+        .join(" ") || `Request failed (${response.status})`;
     throw new ApiError(String(message), response.status, body);
   }
 
